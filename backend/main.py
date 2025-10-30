@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(
     title="Grant Cabinet API",
-    description="Backend for Grant Cabinet system - BMSTU BVT",
+    description="Backend for Grant Cabinet system",
     version="1.0.0"
 )
 
