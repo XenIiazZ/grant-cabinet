@@ -1,79 +1,38 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.database.session import engine, Base
+from app.api.endpoints import grants, auth
+
+# Создаем таблицы
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Grant Cabinet API",
-    description="Backend for Grant Cabinet system",
+    description="Backend for Grant Cabinet system - BMSTU BVT",
     version="1.0.0"
 )
 
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3000", "http://localhost:3001"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Подключаем роутеры
+app.include_router(grants.router, prefix="/api/grants", tags=["grants"])
+app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+
+# Health check
 @app.get("/")
 async def root():
     return {"message": "Grant Cabinet API is running"}
 
 @app.get("/api/health")
 async def health_check():
-    return {
-        "status": "healthy",
-        "service": "Grant Cabinet API",
-        "timestamp": "2024-01-15T10:00:00Z"
-    }
-
-# Mock данные грантов
-mock_grants = [
-    {
-        "id": 1,
-        "title": "Поддержка социальных проектов",
-        "description": "Грант для некоммерческих организаций",
-        "category": "Социальная сфера",
-        "status": "open",
-        "deadline": "2025-03-15",
-        "budget": "2 000 000 ₽",
-        "applications": 245
-    },
-    {
-        "id": 2,
-        "title": "Развитие культурных инициатив", 
-        "description": "Финансирование проектов в области культуры",
-        "category": "Культура",
-        "status": "closing_soon",
-        "deadline": "2025-02-28",
-        "budget": "5 000 000 ₽",
-        "applications": 89
-    }
-]
-
-@app.get("/api/grants")
-async def get_grants():
-    return {
-        "success": True,
-        "data": mock_grants,
-        "count": len(mock_grants)
-    }
-
-@app.get("/api/grants/{grant_id}")
-async def get_grant(grant_id: int):
-    return {
-        "success": True,
-        "message": f"Grant {grant_id} endpoint - ready for implementation",
-        "grant_id": grant_id
-    }
-
-@app.post("/api/auth/login")
-async def login():
-    return {
-        "success": True,
-        "message": "Login endpoint - ready for implementation"
-    }
+    return {"status": "healthy", "service": "Grant Cabinet API"}
 
 if __name__ == "__main__":
     import uvicorn
