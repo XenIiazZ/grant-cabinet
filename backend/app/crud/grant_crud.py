@@ -4,20 +4,14 @@ from app.schemas.grant_schemas import GrantCreate, GrantUpdate
 from typing import List, Optional
 
 class GrantCRUD:
-    def get_all(self, db: Session) -> List[Grant]:
-        return db.query(Grant).all()
+    def get_all(self, db: Session, skip: int = 0, limit: int = 100) -> List[Grant]:
+        return db.query(Grant).offset(skip).limit(limit).all()
     
     def get_by_id(self, db: Session, grant_id: int) -> Optional[Grant]:
         return db.query(Grant).filter(Grant.id == grant_id).first()
     
     def create(self, db: Session, grant_data: GrantCreate) -> Grant:
-        db_grant = Grant(
-            title=grant_data.title,
-            description=grant_data.description,
-            category=grant_data.category,
-            budget=grant_data.budget,
-            deadline=grant_data.deadline
-        )
+        db_grant = Grant(**grant_data.dict())
         db.add(db_grant)
         db.commit()
         db.refresh(db_grant)
