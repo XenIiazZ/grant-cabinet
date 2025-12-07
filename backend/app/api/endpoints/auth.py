@@ -92,6 +92,7 @@ async def login(login_data: UserLogin, db: Session = Depends(get_db)):
     return TokenResponse(
         access_token=token,
         token_type="bearer"
+        
     )
 
 # Получение пользователя - возвращаем UserResponse

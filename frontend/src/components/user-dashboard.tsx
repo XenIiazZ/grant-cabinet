@@ -29,6 +29,7 @@ export function UserDashboard({ applications, onViewApplication, onCreateNewAppl
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dateFilter, setDateFilter] = useState<string>("");
   const [showFilters, setShowFilters] = useState(false);
+  
   const getStatusColor = (status: Application['status']) => {
     switch (status) {
       case 'черновик':
@@ -54,6 +55,8 @@ export function UserDashboard({ applications, onViewApplication, onCreateNewAppl
         return 'Одобрена';
       case 'отклонена':
         return 'Отклонена';
+      default:
+        return status;
     }
   };
 
@@ -104,40 +107,40 @@ export function UserDashboard({ applications, onViewApplication, onCreateNewAppl
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm">Черновики</CardTitle>
-              <FileText className="h-4 w-4 text-gray-600" />
+              <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-medium text-gray-600">{stats.draft}</div>
+              <div className="text-2xl font-medium">{stats.draft}</div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm">На проверке</CardTitle>
-              <Calendar className="h-4 w-4 text-yellow-600" />
+              <Calendar className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-medium text-yellow-600">{stats.pending}</div>
+              <div className="text-2xl font-medium">{stats.pending}</div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm">Одобрена</CardTitle>
-              <DollarSign className="h-4 w-4 text-green-600" />
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-medium text-green-600">{stats.approved}</div>
+              <div className="text-2xl font-medium">{stats.approved}</div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm">Отклонена</CardTitle>
-              <FileText className="h-4 w-4 text-red-600" />
+              <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-medium text-red-600">{stats.rejected}</div>
+              <div className="text-2xl font-medium">{stats.rejected}</div>
             </CardContent>
           </Card>
         </div>
