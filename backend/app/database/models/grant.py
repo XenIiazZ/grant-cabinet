@@ -1,24 +1,58 @@
-from sqlalchemy import JSON, Column, Integer, String, Text, DateTime, ForeignKey
+# backend/app/database/models/grant.py
+from sqlalchemy import JSON, Column, Integer, String, Text, DateTime, ForeignKey, Enum
 from sqlalchemy.orm import relationship
 from datetime import datetime
+import enum
 from app.database.base import Base
+
+class GrantCategory(str, enum.Enum):
+    SOCIAL = "Социальная сфера"
+    EDUCATION = "Образование"
+    CULTURE = "Культура"
+    ECOLOGY = "Экология"
+    TECHNOLOGY = "Технологии"
+    YOUTH = "Молодежная политика"
+    HEALTH = "Здравоохранение"
+    SCIENCE = "Наука"
+    BUSINESS = "Бизнес"
+    OTHER = "Другое"
+
+class GrantStatus(str, enum.Enum):
+    OPEN = "открыт"
+    CLOSING_SOON = "скоро_закрывается"
+    CLOSED = "закрыт"
 
 class Grant(Base):
     __tablename__ = "grants"
     
     id = Column(Integer, primary_key=True, index=True)
+    
+    # Основная информация о гранте
     title = Column(String, nullable=False)
     description = Column(Text, nullable=False)
-    budget_justification = Column(Text, nullable=True)
-    timeline = Column(String, nullable=True)
-    status = Column(String, default="draft")  # draft, pending, approved, rejected
     
-    # Связь с пользователем
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    user = relationship("User", back_populates="grants")
+    # Финансовые условия
+    max_amount = Column(String, nullable=True)  # Максимальная сумма гранта
+    budget_example = Column(Text, nullable=True)  # Пример бюджета
     
-    # ML оценка (храним как JSON)
-    ml_evaluation = Column(JSON, nullable=True)
+    # Сроки
+    deadline = Column(DateTime, nullable=True)  # Дедлайн подачи
+    
+    # Категория и статус
+    category = Column(Enum(GrantCategory), default=GrantCategory.OTHER)
+    status = Column(Enum(GrantStatus), default=GrantStatus.OPEN)
+    
+    # Статистика
+    applicants_count = Column(Integer, default=0)  # Количество поданных заявок
+    
+    # Кто создал грант (администратор)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    
+    # Связи
+    applications = relationship("Application", back_populates="grant", cascade="all, delete-orphan")
     
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def __repr__(self):
+        return f"<Grant {self.id}: {self.title}>"

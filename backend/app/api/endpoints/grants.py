@@ -1,37 +1,39 @@
+# backend/app/api/endpoints/grants.py
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 
 from app.database.session import get_db
 from app.schemas.grant_schemas import GrantCreate, GrantUpdate, GrantResponse
 from app.crud.grant_crud import grant_crud
-from app.api.dependencies import get_current_user
+from app.api.dependencies import get_current_user, get_current_user_optional, check_admin_permission
 from app.database.models.user import User
 
 router = APIRouter()
 
-# 1. GET /grants - Все гранты (публичный доступ)
+# 1. GET /grants - Все гранты (публичный доступ, можно без авторизации)
 @router.get("/", response_model=List[GrantResponse])
 async def get_grants(
     skip: int = 0, 
     limit: int = 100, 
+    category: Optional[str] = None,
+    status: Optional[str] = None,  # Убрали значение по умолчанию "open"
+    current_user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
-    """Получить список всех грантов"""
-    return grant_crud.get_all(db, skip=skip, limit=limit)
+    """Получить список всех публичных грантов"""
+    # Фильтры для запроса
+    filters = {}
+    if category:
+        filters["category"] = category
+    if status:
+        filters["status"] = status
+    
+    # Получаем гранты
+    grants = grant_crud.get_all(db, skip=skip, limit=limit, filters=filters)
+    return grants
 
-# 2. GET /grants/my - Гранты текущего пользователя (требует авторизации)
-@router.get("/my", response_model=List[GrantResponse])
-async def get_my_grants(
-    skip: int = 0,
-    limit: int = 100,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Получить гранты текущего пользователя"""
-    return grant_crud.get_by_user(db, user_id=current_user.id, skip=skip, limit=limit)
-
-# 3. GET /grants/{grant_id} - Конкретный грант (публичный)
+# 2. GET /grants/{grant_id} - Конкретный грант (публичный)
 @router.get("/{grant_id}", response_model=GrantResponse)
 async def get_grant(
     grant_id: int, 
@@ -46,18 +48,18 @@ async def get_grant(
         )
     return grant
 
-# 4. POST /grants - Создать грант (требует авторизации)
+# 3. POST /grants - Создать грант (только для администраторов/создателей)
 @router.post("/", response_model=GrantResponse)
 async def create_grant(
     grant_data: GrantCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(check_admin_permission),
     db: Session = Depends(get_db)
 ):
-    """Создать новый грант"""
-    # Добавляем user_id к данным
+    """Создать новый публичный грант"""
+    # Добавляем created_by (кто создал грант)
     return grant_crud.create_with_owner(db, grant_data, user_id=current_user.id)
 
-# 5. PUT /grants/{grant_id} - Обновить грант (требует авторизации + проверка владельца)
+# 4. PUT /grants/{grant_id} - Обновить грант (только создатель)
 @router.put("/{grant_id}", response_model=GrantResponse)
 async def update_grant(
     grant_id: int, 
@@ -66,7 +68,6 @@ async def update_grant(
     db: Session = Depends(get_db)
 ):
     """Обновить грант"""
-    # Сначала проверяем, существует ли грант и принадлежит ли пользователю
     existing_grant = grant_crud.get_by_id(db, grant_id)
     if not existing_grant:
         raise HTTPException(
@@ -74,18 +75,17 @@ async def update_grant(
             detail="Грант не найден"
         )
     
-    # Проверяем, что пользователь является владельцем гранта
-    if existing_grant.user_id != current_user.id:
+    # Проверяем, что пользователь является создателем гранта
+    if existing_grant.created_by != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Недостаточно прав для редактирования этого гранта"
         )
     
-    # Обновляем грант
     updated_grant = grant_crud.update(db, grant_id, grant_data)
     return updated_grant
 
-# 6. DELETE /grants/{grant_id} - Удалить грант (требует авторизации + проверка владельца)
+# 5. DELETE /grants/{grant_id} - Удалить грант (только создатель)
 @router.delete("/{grant_id}")
 async def delete_grant(
     grant_id: int,
@@ -93,7 +93,6 @@ async def delete_grant(
     db: Session = Depends(get_db)
 ):
     """Удалить грант"""
-    # Сначала проверяем, существует ли грант и принадлежит ли пользователю
     existing_grant = grant_crud.get_by_id(db, grant_id)
     if not existing_grant:
         raise HTTPException(
@@ -101,14 +100,13 @@ async def delete_grant(
             detail="Грант не найден"
         )
     
-    # Проверяем, что пользователь является владельцем гранта
-    if existing_grant.user_id != current_user.id:
+    # Проверяем, что пользователь является создателем гранта
+    if existing_grant.created_by != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Недостаточно прав для удаления этого гранта"
         )
     
-    # Удаляем грант
     success = grant_crud.delete(db, grant_id)
     if not success:
         raise HTTPException(
@@ -117,3 +115,20 @@ async def delete_grant(
         )
     
     return {"message": "Грант успешно удален"}
+
+# 6. GET /grants/categories - Получить все категории грантов
+@router.get("/categories")
+async def get_grant_categories():
+    """Получить список всех доступных категорий грантов"""
+    return [
+        "Социальная сфера",
+        "Образование", 
+        "Культура",
+        "Экология",
+        "Технологии",
+        "Молодежная политика",
+        "Здравоохранение",
+        "Наука",
+        "Бизнес",
+        "Другое"
+    ]

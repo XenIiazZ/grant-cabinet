@@ -11,5 +11,9 @@ class User(Base):
     full_name = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
     
-    # Связь с грантами
-    grants = relationship("Grant", back_populates="user")
+    # Связи
+    grants_created = relationship("Grant", backref="creator", foreign_keys="Grant.created_by")
+    applications = relationship("Application", back_populates="user", cascade="all, delete-orphan")
+    
+    def __repr__(self):
+        return f"<User {self.id}: {self.email}>"

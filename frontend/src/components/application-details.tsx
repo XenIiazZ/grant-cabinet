@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Separator } from "./ui/separator";
-import { ArrowLeft, FileText, Calendar, DollarSign, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { ArrowLeft, FileText, Calendar, DollarSign, CheckCircle2, XCircle, AlertCircle, Brain } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
 
 interface Application {
@@ -20,6 +20,21 @@ interface Application {
     budget: { passed: boolean; comment: string };
     feasibility: { passed: boolean; comment: string };
     impact: { passed: boolean; comment: string };
+  };
+  ml_evaluation?: {
+    overall_score: number;
+    overall_label: string;
+    summary: string;
+    recommendation: string;
+    criteria_evaluations: Array<{
+      criterion_name: string;
+      score: number;
+      label: string;
+      explanation: string;
+      recommendation: string;
+    }>;
+    priority_recommendations: string[];
+    word_count: number;
   };
 }
 
@@ -54,6 +69,19 @@ export function ApplicationDetails({ application, onBack }: ApplicationDetailsPr
         return 'Одобрена';
       case 'отклонена':
         return 'Отклонена';
+    }
+  };
+
+  const getMLStatusColor = (overallLabel: string) => {
+    switch (overallLabel) {
+      case 'Рекомендовано':
+        return 'bg-green-100 text-green-800';
+      case 'Требует доработки':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'Не рекомендовано':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
     }
   };
 
@@ -139,8 +167,105 @@ export function ApplicationDetails({ application, onBack }: ApplicationDetailsPr
           </Card>
         )}
 
-        {/* Результаты проверки ИИ */}
-        {application.aiCheckResults && (
+        {/* ML оценка */}
+        {application.ml_evaluation && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Brain className="h-5 w-5 text-purple-600" />
+                Оценка искусственного интеллекта
+              </CardTitle>
+              <CardDescription>
+                Автоматический анализ заявки по 5 критериям
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Общая оценка */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="text-center p-4 bg-muted rounded-lg">
+                  <div className="text-2xl font-bold">
+                    {Math.round(application.ml_evaluation.overall_score * 100)}%
+                  </div>
+                  <div className="text-sm text-muted-foreground">Общая оценка</div>
+                </div>
+                <div className="text-center p-4 bg-muted rounded-lg">
+                  <div className="text-lg font-semibold">
+                    <Badge className={getMLStatusColor(application.ml_evaluation.overall_label)}>
+                      {application.ml_evaluation.overall_label}
+                    </Badge>
+                  </div>
+                  <div className="text-sm text-muted-foreground mt-2">Рекомендация</div>
+                </div>
+                <div className="text-center p-4 bg-muted rounded-lg">
+                  <div className="text-lg font-semibold">
+                    {application.ml_evaluation.word_count}
+                  </div>
+                  <div className="text-sm text-muted-foreground">Количество слов</div>
+                </div>
+              </div>
+
+              {/* Сводка */}
+              <div>
+                <h4 className="font-medium mb-2">Сводка ИИ:</h4>
+                <p className="text-muted-foreground">{application.ml_evaluation.summary}</p>
+                <p className="text-muted-foreground mt-2">{application.ml_evaluation.recommendation}</p>
+              </div>
+
+              {/* Оценка по критериям */}
+              {application.ml_evaluation.criteria_evaluations && (
+                <div className="space-y-4">
+                  <h4 className="font-medium">Оценка по критериям:</h4>
+                  <div className="space-y-3">
+                    {application.ml_evaluation.criteria_evaluations.map((criterion, index) => (
+                      <div key={index}>
+                        <div className="flex items-start gap-3 p-3 border rounded-lg">
+                          <div className="mt-0.5">
+                            {criterion.label === 'Соответствует' ? (
+                              <CheckCircle2 className="h-5 w-5 text-green-600" />
+                            ) : criterion.label === 'Требует внимания' ? (
+                              <AlertCircle className="h-5 w-5 text-yellow-600" />
+                            ) : (
+                              <XCircle className="h-5 w-5 text-red-600" />
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-medium mb-1">{criterion.criterion_name}</div>
+                            <p className="text-sm text-muted-foreground mb-1">
+                              {criterion.explanation} ({Math.round(criterion.score * 100)}%)
+                            </p>
+                            <p className="text-sm text-blue-600">{criterion.recommendation}</p>
+                          </div>
+                        </div>
+                        {index < application.ml_evaluation.criteria_evaluations.length - 1 && (
+                          <Separator className="my-2" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Приоритетные рекомендации */}
+              {application.ml_evaluation.priority_recommendations && 
+               application.ml_evaluation.priority_recommendations.length > 0 && (
+                <div>
+                  <h4 className="font-medium mb-2">Приоритетные рекомендации:</h4>
+                  <ul className="space-y-1">
+                    {application.ml_evaluation.priority_recommendations.map((rec, idx) => (
+                      <li key={idx} className="flex items-start gap-2 text-sm">
+                        <div className="h-2 w-2 mt-2 bg-primary rounded-full"></div>
+                        <span>{rec}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Старая проверка (для совместимости) */}
+        {application.aiCheckResults && !application.ml_evaluation && (
           <Card>
             <CardHeader>
               <CardTitle>Результаты автоматической проверки</CardTitle>

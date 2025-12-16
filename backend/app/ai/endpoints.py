@@ -8,7 +8,7 @@ from app.database.models.user import User
 from .schemas import GrantEvaluationRequest, GrantMLResponse
 from .evaluator import ml_evaluator
 
-router = APIRouter(tags=["ML Grant Evaluation"])
+router = APIRouter(tags=["AI Evaluation"])  
 
 @router.post("/evaluate", response_model=GrantMLResponse)
 async def evaluate_grant_ml(

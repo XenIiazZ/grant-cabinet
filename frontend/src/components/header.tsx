@@ -69,25 +69,26 @@ export function Header({
           <div className="flex items-center gap-2">
             {isLoggedIn ? (
               <>
-                {/* Выпадающее меню пользователя */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="flex items-center gap-2 h-auto p-2">
-                      <Avatar className="h-8 w-8">
-                        <AvatarFallback className="text-sm">
-                          {userName.split(' ').map(n => n[0]).join('').toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="hidden lg:inline">{userName}</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem onClick={onLogout}>
-                      <LogOut className="h-4 w-4 mr-2" />
-                      Выйти
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                {/* Информация о пользователе */}
+                <div className="hidden lg:flex items-center gap-2">
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback className="text-sm">
+                      {userName.split(' ').map(n => n[0]).join('').toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span>{userName}</span>
+                </div>
+                
+                {/* Кнопка выхода */}
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={onLogout}
+                  className="flex items-center gap-2"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span className="hidden sm:inline">Выйти</span>
+                </Button>
               </>
             ) : (
               <Button onClick={onLogin}>
