@@ -9,8 +9,7 @@ from app.database.base import Base
 from app.api.endpoints.grants import router as grants_router
 from app.api.endpoints.applications import router as applications_router
 from app.api.endpoints.auth import router as auth_router
-
-# ТОЛЬКО ОДИН ML роутер!
+from app.api.endpoints.admin import router as admin_router
 from app.ai.endpoints import router as ai_router
 
 # Создаем таблицы
@@ -25,7 +24,7 @@ app = FastAPI(
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173", "http://localhost:8080"],
+    allow_origins=["http://localhost:3000", "http://localhost:5173", "http://localhost:8080", "http://localhost:3001"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -35,7 +34,8 @@ app.add_middleware(
 app.include_router(grants_router, prefix="/api/grants", tags=["grants"])
 app.include_router(applications_router, prefix="/api/applications", tags=["applications"])
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
-app.include_router(ai_router, prefix="/api/ai", tags=["AI Evaluation"])  # ← Один ML роутер!
+app.include_router(admin_router, prefix="/api/admin", tags=["admin"]) 
+app.include_router(ai_router, prefix="/api/ai", tags=["AI Evaluation"])
 
 # Health check
 @app.get("/")
@@ -46,6 +46,7 @@ async def root():
             "grants": "/api/grants",
             "applications": "/api/applications",
             "auth": "/api/auth",
+            "admin": "/api/admin",  # ДОЛЖНО БЫТЬ ЗДЕСЬ
             "ai": "/api/ai"
         }
     }

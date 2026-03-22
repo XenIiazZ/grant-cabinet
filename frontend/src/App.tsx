@@ -10,6 +10,8 @@ import { Toaster } from "./components/ui/sonner";
 import { ApplicationDetails } from "./components/application-details";
 import { toast } from "sonner";
 import { apiService, type Grant, type Application, type User, type MLEvaluation } from "./services/api";
+import { AdminPanel } from "./components/admin-panel";
+import { api } from './services/api';
 
 // Типы для фронтенда
 interface FrontendGrant {
@@ -37,7 +39,7 @@ interface FrontendApplication {
   ml_evaluation?: MLEvaluation;
 }
 
-type Page = 'catalog' | 'application' | 'dashboard' | 'login' | 'register' | 'application-view';
+type Page = 'catalog' | 'application' | 'dashboard' | 'login' | 'register' | 'application-view' | 'admin-panel';
 
 // Моковые данные
 const mockGrants: FrontendGrant[] = [
@@ -64,6 +66,7 @@ const mockGrants: FrontendGrant[] = [
     applicants: 89
   },
 ];
+
 
 // Простой компонент Button для fallback
 const Button = ({ 
@@ -106,6 +109,9 @@ export default function App() {
   const [grants, setGrants] = useState<FrontendGrant[]>([]);
   const [applications, setApplications] = useState<FrontendApplication[]>([]);
   const [loading, setLoading] = useState(false);
+  const [userRole, setUserRole] = useState<'user' | 'admin' | 'expert'>('user');
+  const [users, setUsers] = useState<User[]>([]);
+  
   
   // Фильтры каталога
   const [searchQuery, setSearchQuery] = useState("");
@@ -113,15 +119,16 @@ export default function App() {
 
   // Проверка авторизации при загрузке
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const accessToken = localStorage.getItem('access_token');  // <-- ИСПРАВЛЕНО: было 'token'
     const savedUser = localStorage.getItem('user');
     
-    if (token && savedUser) {
+    if (accessToken && savedUser) {
       try {
         const user = JSON.parse(savedUser);
         setIsLoggedIn(true);
         setUserName(user.full_name || user.email);
         setUserData(user);
+        setUserRole(user.role || 'user');
       } catch (error) {
         console.error('Ошибка парсинга данных пользователя:', error);
         handleLogout();
@@ -146,14 +153,210 @@ export default function App() {
     }
   }, [selectedApplicationId, currentPage]);
 
-  // Функция загрузки грантов
+  // Загружаем пользователей при переходе в админ-панель
+  useEffect(() => {
+    if (currentPage === 'admin-panel' && isLoggedIn && userRole === 'admin') {
+      loadAllUsers();
+      loadAllApplications();
+    }
+  }, [currentPage, isLoggedIn, userRole]);
+
+  // Функция загрузки всех пользователей
+const loadAllUsers = async () => {
+  try {
+    const response = await apiService.admin.getUsers();
+    const usersWithApps = await Promise.all(response.data.map(async (user: any) => {
+      // Для каждого пользователя получаем количество его заявок
+      try {
+        const apps = await apiService.applications.getMyApplications(); // Но это только для текущего пользователя
+        return {
+          ...user,
+          applicationsCount: 0 // Пока 0, нужно отдельный эндпоинт
+        };
+      } catch {
+        return { ...user, applicationsCount: 0 };
+      }
+    }));
+    setUsers(usersWithApps);
+    console.log('Загруженные пользователи:', response.data);
+  } catch (error) {
+    console.error("Ошибка при загрузке пользователей:", error);
+  }
+};
+  
+
+const loadAllApplications = async () => {
+  try {
+    setLoading(true);
+    console.log('Загрузка всех заявок для админ-панели...');
+    
+    const response = await apiService.admin.getApplications();
+    console.log('Ответ от API (заявки):', response.data);
+    
+    // Преобразуем данные для админ-панели
+    const formattedApps = response.data.map((app: any) => ({
+      id: app.id.toString(),
+      user_id: app.user_id,
+      user_email: app.user_email || `ID: ${app.user_id}`,
+      project_title: app.project_title || app.project_description?.slice(0, 50) + '...' || 'Заявка',
+      grant_title: app.grant_title || 'Неизвестный грант',
+      created_at: app.created_at,
+      status: app.status,
+      budget_justification: app.budget_justification
+    }));
+    
+    console.log('Преобразованные заявки:', formattedApps);
+    setApplications(formattedApps);
+  } catch (error) {
+    console.error('Ошибка загрузки всех заявок:', error);
+    setApplications([]);
+  } finally {
+    setLoading(false);
+  }
+};
+
+const loadUserApplications = async () => {
+  try {
+    setLoading(true);
+    const response = await apiService.applications.getMyApplications();
+    const backendApplications = response.data;
+    
+    const formattedApplications: FrontendApplication[] = backendApplications.map(app => ({
+      id: `APP${app.id.toString().padStart(3, '0')}`,
+      projectTitle: app.project_title,
+      grantTitle: app.grant_title || 'Неизвестный грант',
+      submissionDate: new Date(app.created_at).toLocaleDateString('ru-RU'),
+      status: mapBackendStatus(app.status),
+      requestedAmount: app.budget_justification || 'Не указано',
+      feedback: app.feedback,
+      applicationText: app.project_description,
+      aiCheckResults: transformMlEvaluation(app.ml_evaluation),
+      ml_evaluation: app.ml_evaluation
+    }));
+    
+    console.log('Загруженные заявки:', formattedApplications);
+    setApplications(formattedApplications);
+  } catch (error: any) {
+    console.error('Ошибка загрузки заявок:', error);
+    
+    // Демо заявка для тестирования
+    const demoApplication: FrontendApplication = {
+      id: "APP001",
+      projectTitle: "Демо заявка",
+      grantTitle: "Поддержка социальных проектов",
+      submissionDate: new Date().toLocaleDateString('ru-RU'),
+      status: 'на_проверке',
+      requestedAmount: "500 000 ₽",
+      feedback: "Демо заявка для тестирования",
+      applicationText: "Текст демо заявки",
+      ml_evaluation: {
+        overall_score: 0.75,
+        overall_label: "Рекомендовано",
+        summary: "Хорошая заявка",
+        recommendation: "Рекомендуется к рассмотрению",
+        criteria_evaluations: [],
+        priority_recommendations: ["Добавить больше деталей"],
+        word_count: 150
+      }
+    };
+    
+    setApplications([demoApplication]);
+    toast.warning('Используются демонстрационные данные');
+  } finally {
+    setLoading(false);
+  }
+};
+
+// Также добавьте вспомогательные функции для преобразования данных
+const mapBackendStatus = (backendStatus: string): FrontendApplication['status'] => {
+  switch (backendStatus) {
+    case 'на_рассмотрении': return 'на_проверке';
+    case 'одобрено': return 'одобрена';
+    case 'отклонено': return 'отклонена';
+    case 'требует_доработки': return 'на_проверке';
+    default: return 'черновик';
+  }
+};
+
+const transformMlEvaluation = (mlData?: MLEvaluation) => {
+  if (!mlData) return undefined;
+  
+  return {
+    relevance: {
+      passed: mlData.overall_score >= 0.7,
+      comment: `Общая оценка: ${Math.round(mlData.overall_score * 100)}%`
+    },
+    clarity: {
+      passed: mlData.criteria_evaluations?.some(c => 
+        c.criterion_name.includes('Описание') && c.label === 'Соответствует'
+      ) || false,
+      comment: mlData.criteria_evaluations?.find(c => 
+        c.criterion_name.includes('Описание')
+      )?.explanation || 'Ясность изложения проверена'
+    },
+    budget: {
+      passed: mlData.criteria_evaluations?.some(c => 
+        c.criterion_name.includes('Бюджет') && c.label === 'Соответствует'
+      ) || false,
+      comment: mlData.criteria_evaluations?.find(c => 
+        c.criterion_name.includes('Бюджет')
+      )?.explanation || 'Бюджетная часть проверена'
+    },
+    feasibility: {
+      passed: mlData.criteria_evaluations?.some(c => 
+        c.criterion_name.includes('Сроки') && c.label === 'Соответствует'
+      ) || false,
+      comment: mlData.criteria_evaluations?.find(c => 
+        c.criterion_name.includes('Сроки')
+      )?.explanation || 'Реалистичность плана оценена'
+    },
+    impact: {
+      passed: mlData.criteria_evaluations?.some(c => 
+        c.criterion_name.includes('Социальная') && c.label === 'Соответствует'
+      ) || false,
+      comment: mlData.criteria_evaluations?.find(c => 
+        c.criterion_name.includes('Социальная')
+      )?.explanation || 'Социальная значимость проверена'
+    }
+  };
+};
+
+const loadApplicationDetails = async (applicationId: string) => {
+  try {
+    const numericId = parseInt(applicationId.replace('APP', ''));
+    const response = await apiService.applications.getApplicationById(numericId);
+    const app = response.data;
+    
+    const fullApplication: FrontendApplication = {
+      id: `APP${app.id.toString().padStart(3, '0')}`,
+      projectTitle: app.project_title,
+      grantTitle: app.grant_title || selectedGrantTitle || 'Неизвестный грант',
+      submissionDate: new Date(app.created_at).toLocaleDateString('ru-RU'),
+      status: mapBackendStatus(app.status),
+      requestedAmount: app.budget_justification || 'Не указано',
+      feedback: app.feedback,
+      applicationText: app.project_description,
+      aiCheckResults: transformMlEvaluation(app.ml_evaluation),
+      ml_evaluation: app.ml_evaluation
+    };
+    
+    setCurrentApplication(fullApplication);
+  } catch (error) {
+    console.error('Ошибка загрузки деталей заявки:', error);
+    toast.error('Не удалось загрузить детали заявки');
+  }
+};
+
+  
+
+  // Исправленная функция загрузки грантов
   const loadGrants = async () => {
     try {
       setLoading(true);
       const response = await apiService.grants.getAll();
-      const backendGrants = response.data;
+      const backendData = Array.isArray(response.data) ? response.data : [];
       
-      const formattedGrants: FrontendGrant[] = backendGrants.map(grant => ({
+      const formattedGrants: FrontendGrant[] = backendData.map((grant: any) => ({
         id: grant.id.toString(),
         title: grant.title,
         organization: 'Грантовый кабинет',
@@ -161,357 +364,203 @@ export default function App() {
         amount: grant.max_amount || 'Не указано',
         deadline: grant.deadline ? new Date(grant.deadline).toLocaleDateString('ru-RU') : 'Не указан',
         category: grant.category || 'Общая категория',
-        status: grant.status as 'открыт' | 'скоро_закрывается' | 'закрыт',
+        status: grant.status as any,
         applicants: grant.applicants_count || 0
       }));
       
-      setGrants(formattedGrants);
+      setGrants(formattedGrants.length > 0 ? formattedGrants : []);
     } catch (error) {
       console.error('Ошибка загрузки грантов:', error);
-      setGrants(mockGrants);
-      toast.error('Используются демонстрационные данные');
+      setGrants([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Загрузка заявок пользователя
-  const loadUserApplications = async () => {
-    try {
-      setLoading(true);
-      const response = await apiService.applications.getMyApplications();
-      const backendApplications = response.data;
-      
-      const formattedApplications: FrontendApplication[] = backendApplications.map(app => ({
-        id: `APP${app.id.toString().padStart(3, '0')}`,
-        projectTitle: app.project_title,
-        grantTitle: app.grant_title || 'Неизвестный грант',
-        submissionDate: new Date(app.created_at).toLocaleDateString('ru-RU'),
-        status: mapBackendStatus(app.status),
-        requestedAmount: app.budget_justification || 'Не указано',
-        feedback: app.feedback,
-        applicationText: app.project_description,
-        aiCheckResults: transformMlEvaluation(app.ml_evaluation),
-        ml_evaluation: app.ml_evaluation
-      }));
-      
-      console.log('Загруженные заявки:', formattedApplications);
-      setApplications(formattedApplications);
-    } catch (error: any) {
-      console.error('Ошибка загрузки заявок:', error);
-      
-      // Создаем демо заявку для тестирования
-      const demoApplication: FrontendApplication = {
-        id: "APP001",
-        projectTitle: "Демо заявка",
-        grantTitle: "Поддержка социальных проектов",
-        submissionDate: new Date().toLocaleDateString('ru-RU'),
-        status: 'на_проверке',
-        requestedAmount: "500 000 ₽",
-        feedback: "Демо заявка для тестирования",
-        applicationText: "Текст демо заявки",
-        ml_evaluation: {
-          overall_score: 0.75,
-          overall_label: "Рекомендовано",
-          summary: "Хорошая заявка",
-          recommendation: "Рекомендуется к рассмотрению",
-          criteria_evaluations: [],
-          priority_recommendations: ["Добавить больше деталей"],
-          word_count: 150
-        }
-      };
-      
-      setApplications([demoApplication]);
-      toast.warning('Используются демонстрационные данные');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Преобразование статуса бэкенда во фронтенд
-  const mapBackendStatus = (backendStatus: string): FrontendApplication['status'] => {
-    switch (backendStatus) {
-      case 'на_рассмотрении': return 'на_проверке';
-      case 'одобрено': return 'одобрена';
-      case 'отклонено': return 'отклонена';
-      case 'требует_доработки': return 'на_проверке';
-      default: return 'черновик';
-    }
-  };
-
-  // Преобразование ML оценки
-  const transformMlEvaluation = (mlData?: MLEvaluation) => {
-    if (!mlData) return undefined;
-    
-    return {
-      relevance: {
-        passed: mlData.overall_score >= 0.7,
-        comment: `Общая оценка: ${Math.round(mlData.overall_score * 100)}%`
-      },
-      clarity: {
-        passed: mlData.criteria_evaluations.some(c => 
-          c.criterion_name.includes('Описание') && c.label === 'Соответствует'
-        ),
-        comment: mlData.criteria_evaluations.find(c => 
-          c.criterion_name.includes('Описание')
-        )?.explanation || 'Ясность изложения проверена'
-      },
-      budget: {
-        passed: mlData.criteria_evaluations.some(c => 
-          c.criterion_name.includes('Бюджет') && c.label === 'Соответствует'
-        ),
-        comment: mlData.criteria_evaluations.find(c => 
-          c.criterion_name.includes('Бюджет')
-        )?.explanation || 'Бюджетная часть проверена'
-      },
-      feasibility: {
-        passed: mlData.criteria_evaluations.some(c => 
-          c.criterion_name.includes('Сроки') && c.label === 'Соответствует'
-        ),
-        comment: mlData.criteria_evaluations.find(c => 
-          c.criterion_name.includes('Сроки')
-        )?.explanation || 'Реалистичность плана оценена'
-      },
-      impact: {
-        passed: mlData.criteria_evaluations.some(c => 
-          c.criterion_name.includes('Социальная') && c.label === 'Соответствует'
-        ),
-        comment: mlData.criteria_evaluations.find(c => 
-          c.criterion_name.includes('Социальная')
-        )?.explanation || 'Социальная значимость проверена'
-      }
-    };
-  };
-
-  // Загрузка деталей заявки
-  const loadApplicationDetails = async (applicationId: string) => {
-    try {
-      const numericId = parseInt(applicationId.replace('APP', ''));
-      const response = await apiService.applications.getApplicationById(numericId);
-      const app = response.data;
-      
-      const fullApplication: FrontendApplication = {
-        id: `APP${app.id.toString().padStart(3, '0')}`,
-        projectTitle: app.project_title,
-        grantTitle: app.grant_title || selectedGrantTitle || 'Неизвестный грант',
-        submissionDate: new Date(app.created_at).toLocaleDateString('ru-RU'),
-        status: mapBackendStatus(app.status),
-        requestedAmount: app.budget_justification || 'Не указано',
-        feedback: app.feedback,
-        applicationText: app.project_description,
-        aiCheckResults: transformMlEvaluation(app.ml_evaluation),
-        ml_evaluation: app.ml_evaluation
-      };
-      
-      setCurrentApplication(fullApplication);
-    } catch (error) {
-      console.error('Ошибка загрузки деталей заявки:', error);
-      
-      // Fallback: создаем демо заявку
-      const demoApp: FrontendApplication = {
-        id: applicationId,
-        projectTitle: "Заявка на грант",
-        grantTitle: selectedGrantTitle || "Неизвестный грант",
-        submissionDate: new Date().toLocaleDateString('ru-RU'),
-        status: 'на_проверке',
-        requestedAmount: "500 000 ₽",
-        feedback: "Заявка на рассмотрении",
-        applicationText: "Текст заявки",
-        ml_evaluation: {
-          overall_score: 0.65,
-          overall_label: "Требует доработки",
-          summary: "Средняя оценка",
-          recommendation: "Требуется доработка",
-          criteria_evaluations: [],
-          priority_recommendations: ["Уточнить бюджет", "Добавить сроки"],
-          word_count: 120
-        }
-      };
-      
-      setCurrentApplication(demoApp);
-      toast.warning('Загружены демо данные');
-    }
-  };
-
-  // Обработка логина
   const handleLogin = async (email: string, password: string) => {
     try {
       const response = await apiService.auth.login(email, password);
-      const { access_token } = response.data;
+      const { access_token, refresh_token } = response.data;
       
-      // Создаем mock пользователя
-      const user: User = {
-        id: Date.now(),
-        email: email,
-        full_name: email.split('@')[0]
-      };
+      console.log('Сохраняем токены:', { access_token, refresh_token }); // Для отладки
       
-      // Сохраняем в localStorage
-      localStorage.setItem('token', access_token);
+      // Сохраняем оба токена с правильными именами
+      localStorage.setItem('access_token', access_token);  // <-- ИСПРАВЛЕНО: было 'token'
+      localStorage.setItem('refresh_token', refresh_token);
+      
+      // Получаем данные пользователя
+      const userResponse = await apiService.auth.getMe();
+      const user = userResponse.data;
+      
+      // Сохраняем данные пользователя
       localStorage.setItem('user', JSON.stringify(user));
       
-      setUserName(user.full_name || email);
+      // Обновляем состояние
       setUserData(user);
+      setUserName(user.full_name);
+      setUserRole(user.role as 'user' | 'admin' | 'expert');
       setIsLoggedIn(true);
-      setCurrentPage('catalog');
       
-      toast.success('Вход выполнен успешно!');
+      // Переходим на соответствующую страницу
+      if (user.role === 'admin') {
+        setCurrentPage('admin-panel');
+        toast.success('Вы вошли как администратор');
+      } else {
+        setCurrentPage('catalog');
+        toast.success(`Добро пожаловать, ${user.full_name}!`);
+      }
       
     } catch (error: any) {
       console.error('Ошибка входа:', error);
-      toast.error(error.response?.data?.detail || 'Ошибка входа');
+      
+      let errorMessage = 'Ошибка авторизации';
+      if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
+      }
+      
+      toast.error(errorMessage);
     }
   };
 
-  // Обработка регистрации
+  // Исправленная функция регистрации
   const handleRegister = async (email: string, password: string, fullName: string) => {
     try {
       const response = await apiService.auth.register(email, password, fullName);
       const user = response.data;
       
-      // Логинимся после регистрации
-      const loginResponse = await apiService.auth.login(email, password);
-      const { access_token } = loginResponse.data;
-      
-      localStorage.setItem('token', access_token);
-      localStorage.setItem('user', JSON.stringify(user));
-      
-      setUserName(fullName);
-      setUserData(user);
-      setIsLoggedIn(true);
-      setCurrentPage('catalog');
-      
-      toast.success('Регистрация выполнена успешно');
+      toast.success('Регистрация выполнена успешно! Теперь войдите в систему.');
+      setCurrentPage('login');
       
     } catch (error: any) {
       console.error('Ошибка регистрации:', error);
-      toast.error(error.response?.data?.detail || 'Ошибка регистрации');
+      
+      let errorMessage = 'Ошибка регистрации';
+      if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
+      }
+      
+      toast.error(errorMessage);
     }
   };
 
-  // Выход из системы
-  const handleLogout = () => {
-    apiService.auth.logout();
-    setIsLoggedIn(false);
-    setUserName("");
-    setUserData(null);
-    setApplications([]);
-    setCurrentPage('catalog');
-    toast.success('Выход выполнен');
-  };
 
-  // Обработка подачи заявки
-  const handleApplyToGrant = (grantId: string, grantTitle: string) => {
-    if (!isLoggedIn) {
-      setCurrentPage('login');
-      toast.warning('Для подачи заявки необходимо войти в систему');
+  
+
+const extractBudgetFromText = (text: string): string => {
+  if (!text) return 'Не указан';
+  // Ищем сумму в тексте (цифры с указанием рублей, тыс, млн)
+  const budgetRegex = /(?:бюджет|сумма|финанс|расход|стоимост)[^\d]*(\d+[\s]*(?:[₽руб]|тыс|млн|миллион|тысяч))/i;
+  const match = text.match(budgetRegex);
+  if (match) return match[1];
+  
+  // Если не нашли по ключевым словам, ищем просто числа с валютой
+  const amountRegex = /(\d+[\s]*(?:[₽руб]|тыс|млн))/i;
+  const amountMatch = text.match(amountRegex);
+  return amountMatch ? amountMatch[1] : 'Не указан';
+};
+
+const extractTimelineFromText = (text: string): string => {
+  if (!text) return 'Не указаны';
+  // Ищем сроки в тексте
+  const timelineRegex = /(?:срок|период|время|длительност|реализаци)[^\d]*(\d+[\s]*(?:месяц|год|недел|дн|квартал|день|дней|месяцев|лет))/i;
+  const match = text.match(timelineRegex);
+  return match ? match[1] : 'Не указаны';
+};
+
+// ИСПРАВЛЕННАЯ функция handleSubmitApplication
+const handleSubmitApplication = async (applicationText: string) => {
+  try {
+    // 1. Сначала проверяем, существует ли грант
+    if (!selectedGrantId) {
+      toast.error('Не выбран грант');
       return;
     }
-    setSelectedGrantId(grantId);
-    setSelectedGrantTitle(grantTitle);
-    setCurrentPage('application');
-  };
 
-  // Отправка заявки с ML оценкой
-  const handleSubmitApplication = async (applicationText: string) => {
+    // 2. Получаем ML оценку
+    const mlResponse = await apiService.ml.evaluate(applicationText, selectedGrantTitle);
+    const mlEvaluation = mlResponse.data;
+    
+    // 3. Создаем заявку
+    const applicationData = {
+      grant_id: parseInt(selectedGrantId),
+      project_title: `Заявка на "${selectedGrantTitle}"`,
+      project_description: applicationText,
+      budget_justification: extractBudgetFromText(applicationText), // Теперь функция определена
+      timeline: extractTimelineFromText(applicationText), // Теперь функция определена
+      ml_evaluation: mlEvaluation,
+      status: "на_рассмотрении"
+    };
+    
+    console.log('Отправка заявки:', applicationData); // Для отладки
+    
+    const appResponse = await apiService.applications.createApplication(applicationData);
+    console.log('Ответ сервера:', appResponse.data); // Для отладки
+    
+    // После успешного создания, перезагружаем список заявок
+    await loadUserApplications();
+    
+    toast.success('Заявка успешно отправлена!');
+    setCurrentPage('dashboard');
+    
+  } catch (error: any) {
+    console.error('Ошибка создания заявки:', error);
+    
+    // Более подробная ошибка
+    if (error.response?.data?.detail) {
+      toast.error(error.response.data.detail);
+    } else {
+      toast.error('Ошибка создания заявки');
+    }
+  }
+};
+
+  const handleApplyToGrant = (grantId: string, grantTitle: string) => {
+  if (!isLoggedIn) {
+    setCurrentPage('login');
+    toast.warning('Для подачи заявки необходимо войти в систему');
+    return;
+  }
+  setSelectedGrantId(grantId);
+  setSelectedGrantTitle(grantTitle);
+  setCurrentPage('application');
+};
+
+  const handleViewApplication = (applicationId: string) => {
+  setSelectedApplicationId(applicationId);
+  setCurrentPage('application-view');
+};
+  // Выход из системы
+  const handleLogout = async () => {
     try {
-      // 1. Получаем ML оценку
-      const mlResponse = await apiService.ml.evaluate(applicationText, selectedGrantTitle);
-      const mlEvaluation = mlResponse.data;
-      
-      // 2. Создаем заявку СРАЗУ со статусом "на_рассмотрении"
-      const applicationData = {
-        grant_id: parseInt(selectedGrantId || "1"),
-        project_title: `Заявка на "${selectedGrantTitle}"`,
-        project_description: applicationText,
-        budget_justification: extractBudgetFromText(applicationText),
-        timeline: extractTimelineFromText(applicationText),
-        ml_evaluation: mlEvaluation,
-        status: "на_рассмотрении"  // ← ДОБАВЬТЕ ЭТУ СТРОКУ!
-      };
-      
-      const appResponse = await apiService.applications.createApplication(applicationData);
-      const createdApp = appResponse.data;
-      
-      // 3. Преобразуем для фронтенда
-      const newApplication: FrontendApplication = {
-        id: `APP${createdApp.id.toString().padStart(3, '0')}`,
-        projectTitle: createdApp.project_title,
-        grantTitle: selectedGrantTitle,
-        submissionDate: new Date(createdApp.created_at).toLocaleDateString('ru-RU'),
-        status: 'на_проверке',  // Это фронтендный статус для "на_рассмотрении"
-        requestedAmount: createdApp.budget_justification || 'Не указано',
-        feedback: mlEvaluation.recommendation,
-        applicationText: createdApp.project_description,
-        aiCheckResults: transformMlEvaluation(mlEvaluation),
-        ml_evaluation: mlEvaluation
-      };
-      
-      // 4. Обновляем состояние
-      setApplications(prev => [newApplication, ...prev]);
-      
-      toast.success('Заявка успешно отправлена на рассмотрение!');
-      setCurrentPage('dashboard');
-      
-    } catch (error: any) {
-      console.error('Ошибка создания заявки:', error);
-      toast.error(error.response?.data?.detail || 'Ошибка создания заявки');
+      const refreshToken = localStorage.getItem('refresh_token');
+      if (refreshToken) {
+        // Пытаемся отозвать токен на сервере
+        await apiService.auth.logout(refreshToken).catch(() => {});
+      }
+    } catch (error) {
+      console.error('Ошибка при выходе:', error);
+    } finally {
+      localStorage.clear();  // Очищаем все
+      setIsLoggedIn(false);
+      setUserName("");
+      setUserData(null);
+      setUserRole('user');
+      setApplications([]);
+      setUsers([]);
+      setCurrentPage('catalog');
+      toast.success('Выход выполнен');
     }
   };
-      
-  //     // Fallback: создаем локальную заявку
-  //     const fallbackApp: FrontendApplication = {
-  //       id: `APP${Date.now().toString().slice(-6)}`,
-  //       projectTitle: `Заявка на "${selectedGrantTitle}"`,
-  //       grantTitle: selectedGrantTitle,
-  //       submissionDate: new Date().toLocaleDateString('ru-RU'),
-  //       status: 'на_проверке',
-  //       requestedAmount: extractBudgetFromText(applicationText) || 'Не указано',
-  //       feedback: 'Заявка сохранена локально',
-  //       applicationText: applicationText,
-  //       ml_evaluation: {
-  //         overall_score: 0.7,
-  //         overall_label: "Рекомендовано",
-  //         summary: "Заявка проверена локально",
-  //         recommendation: "Готова к рассмотрению",
-  //         criteria_evaluations: [],
-  //         priority_recommendations: [],
-  //         word_count: applicationText.trim().split(/\s+/).length
-  //       }
-  //     };
-      
-  //     setApplications(prev => [fallbackApp, ...prev]);
-  //     toast.warning('Заявка сохранена локально (ошибка сервера)');
-  //     setCurrentPage('dashboard');
-  //   }
-  // };
 
-  // Вспомогательные функции для извлечения данных из текста
-  const extractBudgetFromText = (text: string): string => {
-    if (!text) return 'Не указан';
-    const budgetRegex = /(?:бюджет|сумма|финанс|расход|стоимост)[^\d]*(\d+[\s]*[₽руб]|\d+[\s]*(?:тыс|млн))/i;
-    const match = text.match(budgetRegex);
-    return match ? match[1] : 'Не указан';
-  };
 
-  const extractTimelineFromText = (text: string): string => {
-    if (!text) return 'Не указаны';
-    const timelineRegex = /(?:срок|период|время|длительност)[^\d]*(\d+[\s]*(?:месяц|год|недел|дн|квартал))/i;
-    const match = text.match(timelineRegex);
-    return match ? match[1] : 'Не указаны';
-  };
+  const handleNavigateToAdmin = () => {
+  if (isLoggedIn && userRole === 'admin') {
+    setCurrentPage('admin-panel');
+    loadAllUsers();
+    loadAllApplications();
+  }
+};
 
-  // Просмотр заявки
-  const handleViewApplication = (applicationId: string) => {
-    console.log('Просмотр заявки:', applicationId);
-    setSelectedApplicationId(applicationId);
-    setCurrentPage('application-view');
-  };
-
-  // Навигация
-  const handleSwitchToLogin = () => setCurrentPage('login');
-  const handleSwitchToRegister = () => setCurrentPage('register');
-  const handleNavigateHome = () => setCurrentPage('catalog');
   const handleNavigateToProfile = () => {
     if (isLoggedIn) {
       setCurrentPage('dashboard');
@@ -519,19 +568,40 @@ export default function App() {
       setCurrentPage('login');
     }
   };
+
+  const handleNavigateHome = () => {
+    setCurrentPage('catalog');
+  };
+
+  const handleSwitchToLogin = () => setCurrentPage('login');
+  const handleSwitchToRegister = () => setCurrentPage('register');
+
   const handleBackFromApplication = () => {
     setCurrentPage('catalog');
     setSelectedGrantId(null);
     setSelectedGrantTitle("");
   };
+
   const handleBackToDashboard = () => {
     setCurrentApplication(null);
     setSelectedApplicationId(null);
     setCurrentPage('dashboard');
   };
-  const handleCreateNewApplication = () => setCurrentPage('catalog');
 
-  // Рендеринг текущей страницы
+  const handleCreateNewApplication = () => setCurrentPage('catalog');
+    // ... (остальные функции остаются без изменений)
+
+
+  const handleRefreshData = async () => {
+  if (userRole === 'admin') {
+    await Promise.all([
+      loadAllUsers(),
+      loadAllApplications(),
+      loadGrants()
+    ]);
+  }
+};
+  
   const renderCurrentPage = () => {
     switch (currentPage) {
       case 'catalog':
@@ -592,6 +662,84 @@ export default function App() {
           />
         );
       
+      case 'admin-panel':
+        return (
+          <AdminPanel
+            users={users}
+            grants={grants}
+            applications={applications} // Теперь сюда будут приходить все заявки
+            onUpdateUser={async (id, updates) => {
+              try {
+                if (updates.status) {
+                  const isActive = updates.status === 'active';
+                  await apiService.admin.toggleUserStatus(Number(id), isActive);
+                  toast.success('Статус пользователя обновлен');
+                  loadAllUsers();
+                }
+                if (updates.role) {
+                  await apiService.admin.changeUserRole(Number(id), updates.role as 'user' | 'admin');
+                  toast.success('Роль пользователя обновлена');
+                  loadAllUsers();
+                }
+              } catch (error) {
+                toast.error('Ошибка при обновлении пользователя');
+              }
+            }}
+            onDeleteUser={async (id) => {
+              try {
+                await apiService.admin.deleteUser(Number(id));
+                toast.success('Пользователь удален');
+                loadAllUsers();
+              } catch (error) {
+                toast.error('Ошибка при удалении пользователя');
+              }
+            }}
+            onCreateGrant={async (grantData) => {
+              try {
+                await apiService.grants.create(grantData);
+                toast.success('Грант создан');
+                loadGrants();
+              } catch (error) {
+                toast.error('Ошибка при создании гранта');
+              }
+            }}
+            onUpdateGrant={async (id, updates) => {
+              try {
+                await apiService.grants.update(Number(id), updates);
+                toast.success('Грант обновлен');
+                loadGrants();
+              } catch (error) {
+                toast.error('Ошибка при обновлении гранта');
+              }
+            }}
+            onDeleteGrant={async (id) => {
+              try {
+                await apiService.grants.delete(Number(id));
+                toast.success('Грант удален');
+                loadGrants();
+              } catch (error) {
+                toast.error('Ошибка при удалении гранта');
+              }
+            }}
+            onUpdateApplication={async (id, updates) => {
+              try {
+                if (updates.status) {
+                  await apiService.applications.updateStatus(Number(id), updates.status);
+                  toast.success('Статус заявки обновлен');
+                  loadAllApplications(); // Загружаем все заявки заново
+                }
+              } catch (error) {
+                toast.error('Ошибка при обновлении заявки');
+              }
+            }}
+            onRefreshData={() => {
+              loadGrants();
+              loadAllApplications(); // Используем новую функцию
+              loadAllUsers();
+            }}
+          />
+        );
+
       case 'login':
         return (
           <LoginForm
@@ -604,7 +752,7 @@ export default function App() {
         return (
           <RegisterForm
             onRegister={handleRegister}
-            onSwitchToLogin={handleSwitchToLogin}
+            onSwitchToLogin={handleSwitchToRegister}
           />
         );
       
@@ -621,7 +769,7 @@ export default function App() {
         );
     }
   };
-
+  
   const showHeaderAndFooter = currentPage !== 'login' && currentPage !== 'register';
 
   return (
@@ -630,11 +778,13 @@ export default function App() {
         <Header
           isLoggedIn={isLoggedIn}
           userName={userName}
+          userRole={userRole}
           currentPage={currentPage}
           onLogin={() => setCurrentPage('login')}
           onLogout={handleLogout}
           onNavigateToProfile={handleNavigateToProfile}
           onNavigateHome={handleNavigateHome}
+          onNavigateToAdmin={handleNavigateToAdmin}
         />
       )}
       

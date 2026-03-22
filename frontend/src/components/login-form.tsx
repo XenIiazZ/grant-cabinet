@@ -4,6 +4,8 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Separator } from "./ui/separator";
+import { Alert, AlertDescription } from "./ui/alert";
+import { Shield } from "lucide-react";
 
 interface LoginFormProps {
   onLogin: (email: string, password: string) => void;
@@ -101,6 +103,18 @@ export function LoginForm({ onLogin, onSwitchToRegister }: LoginFormProps) {
                 {isLoading ? "Вход..." : "Войти"}
               </Button>
             </form>
+            
+            {/* Подсказка для тестирования */}
+            <Alert className="mt-4">
+              <Shield className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Для тестирования:</strong>
+                <br />
+                Админ: <code className="text-xs bg-muted px-1 py-0.5 rounded">admin@grantcabinet.ru</code>
+                <br />
+                Пользователь: любой другой email
+              </AlertDescription>
+            </Alert>
           </CardContent>
         </Card>
 

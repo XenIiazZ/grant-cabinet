@@ -1,32 +1,29 @@
 import { Button } from "./ui/button";
 import { Avatar, AvatarFallback } from "./ui/avatar";
-import { LogOut, User, Award } from "lucide-react";
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger,
-  DropdownMenuSeparator
-} from "./ui/dropdown-menu";
+import { LogOut, Award } from "lucide-react";
 
 interface HeaderProps {
   isLoggedIn?: boolean;
   userName?: string;
+  userRole?: 'user' | 'admin';
   currentPage?: string;
   onLogin?: () => void;
   onLogout?: () => void;
   onNavigateToProfile?: () => void;
   onNavigateHome?: () => void;
+  onNavigateToAdmin?: () => void;
 }
 
 export function Header({ 
   isLoggedIn = false, 
   userName = "Пользователь",
+  userRole = "user",
   currentPage = "catalog",
   onLogin,
   onLogout,
   onNavigateToProfile,
-  onNavigateHome
+  onNavigateHome,
+  onNavigateToAdmin
 }: HeaderProps) {
   return (
     <header className="border-b bg-white">
@@ -61,6 +58,15 @@ export function Header({
                 >
                   Мои заявки
                 </Button>
+                {userRole === 'admin' && (
+                  <Button 
+                    variant={currentPage === 'admin-panel' ? 'default' : 'ghost'}
+                    onClick={onNavigateToAdmin}
+                    size="sm"
+                  >
+                    Админ-панель
+                  </Button>
+                )}
               </nav>
             )}
           </div>

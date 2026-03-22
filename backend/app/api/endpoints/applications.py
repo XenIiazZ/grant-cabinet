@@ -1,15 +1,16 @@
-# backend/app/api/endpoints/applications.py
+#backend/app/api/endpoints/applications.py
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import List
 
 from app.database.session import get_db
 from app.schemas.application_schemas import ApplicationCreate, ApplicationUpdate, ApplicationResponse
 from app.crud.application_crud import application_crud
-from app.api.dependencies import get_current_user, check_user_permission
+from app.api.dependencies import check_admin_permission, get_current_user, check_user_permission, get_current_user_optional
 from app.database.models.user import User
 from app.database.models.grant import Grant
-
+from app.database.models.application import Application
 router = APIRouter()
 
 # 1. GET /applications/my - Мои заявки (только мои)
@@ -72,7 +73,7 @@ async def get_application(
     return application
 
 # 3. POST /applications/ - Создать заявку на грант
-@router.post("/", response_model=ApplicationResponse)
+@router.post("/", response_model=ApplicationResponse)  # Важно: со слешем
 async def create_application(
     application_data: ApplicationCreate,
     current_user: User = Depends(get_current_user),
@@ -235,3 +236,40 @@ async def submit_application(
         return ApplicationResponse(**application_dict)
     
     return updated_application
+
+
+# Модель для обновления статуса
+class ApplicationStatusUpdate(BaseModel):
+    status: str
+    feedback: str | None = None
+
+@router.patch("/{application_id}/status")
+async def update_application_status(
+    application_id: int,
+    status_update: ApplicationStatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(check_admin_permission)  # Только админ может менять статус
+):
+    """Обновление статуса заявки (только для админа)"""
+    application = db.query(Application).filter(Application.id == application_id).first()
+    
+    if not application:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Заявка не найдена"
+        )
+    
+    # Обновляем статус
+    application.status = status_update.status
+    
+    # Если есть фидбек, обновляем его
+    if status_update.feedback:
+        application.feedback = status_update.feedback
+    
+    db.commit()
+    db.refresh(application)
+    
+    return {
+        "message": f"Статус заявки обновлен на {status_update.status}",
+        "application": application
+    }

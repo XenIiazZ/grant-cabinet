@@ -9,29 +9,98 @@ const api = axios.create({
   },
 });
 
+// Флаг для предотвращения бесконечного цикла обновления
+let isRefreshing = false;
+let refreshSubscribers: ((token: string) => void)[] = [];
+
 // Добавляем токен к каждому запросу
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('access_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
 
-// Интерцептор для ошибок
+// Функция для подписки на обновление токена
+const subscribeTokenRefresh = (cb: (token: string) => void) => {
+  refreshSubscribers.push(cb);
+};
+
+// Функция для уведомления всех подписчиков о новом токене
+const onRefreshed = (token: string) => {
+  refreshSubscribers.forEach(cb => cb(token));
+  refreshSubscribers = [];
+};
+
+// Интерцептор для обработки 401 ошибок и обновления токена
 api.interceptors.response.use(
   response => response,
-  error => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/';
+  async error => {
+    const originalRequest = error.config;
+    
+    // Если это не 401 или уже пробовали обновить - отклоняем
+    if (error.response?.status !== 401 || originalRequest._retry) {
+      return Promise.reject(error);
     }
-    return Promise.reject(error);
+
+    // Если это запрос на обновление токена и он тоже 401 - разлогиниваем
+    if (originalRequest.url?.includes('/auth/refresh')) {
+      localStorage.clear();
+      window.location.href = '/';
+      return Promise.reject(error);
+    }
+
+    if (!isRefreshing) {
+      isRefreshing = true;
+      originalRequest._retry = true;
+
+      try {
+        const refreshToken = localStorage.getItem('refresh_token');
+        if (!refreshToken) {
+          throw new Error('No refresh token');
+        }
+
+        // Пытаемся обновить токен
+        const response = await axios.post(`${API_URL}/auth/refresh`, {
+          refresh_token: refreshToken
+        });
+
+        const { access_token, refresh_token } = response.data;
+        
+        // Сохраняем новые токены
+        localStorage.setItem('access_token', access_token);
+        localStorage.setItem('refresh_token', refresh_token);
+        
+        // Обновляем заголовок для исходного запроса
+        originalRequest.headers.Authorization = `Bearer ${access_token}`;
+        
+        // Уведомляем все ожидающие запросы
+        onRefreshed(access_token);
+        
+        // Повторяем исходный запрос
+        return api(originalRequest);
+      } catch (refreshError) {
+        // Если не удалось обновить - очищаем все и редирект на логин
+        localStorage.clear();
+        window.location.href = '/login';
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
+      }
+    }
+
+    // Если уже идет обновление, подписываемся на новое событие
+    return new Promise((resolve) => {
+      subscribeTokenRefresh((token: string) => {
+        originalRequest.headers.Authorization = `Bearer ${token}`;
+        resolve(api(originalRequest));
+      });
+    });
   }
 );
 
-// Типы для фронтенда
+// Типы (оставляем без изменений)
 export interface Grant {
   id: number;
   title: string;
@@ -67,6 +136,7 @@ export interface User {
   id: number;
   email: string;
   full_name: string;
+  role: string;
 }
 
 export interface MLEvaluation {
@@ -91,16 +161,21 @@ export interface UserResponse {
   id: number;
   email: string;
   full_name: string;
+  role: string;
 }
 
 export interface TokenResponse {
   access_token: string;
+  refresh_token: string;  // Обновлено
   token_type: string;
 }
 
-// API методы
+export interface RefreshTokenRequest {
+  refresh_token: string;
+}
+
+// API методы (обновленные)
 export const apiService = {
-  // Авторизация
   auth: {
     login: (email: string, password: string) =>
       api.post<TokenResponse>('/auth/login', { email, password }),
@@ -110,30 +185,48 @@ export const apiService = {
     
     getMe: () => api.get<UserResponse>('/auth/me'),
     
-    logout: () => {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+    refreshToken: (refresh_token: string) =>
+      api.post<TokenResponse>('/auth/refresh', { refresh_token }),
+    
+    logout: (refresh_token: string) =>
+      api.post('/auth/logout', { refresh_token }),
+    
+    logoutAll: () => api.post('/auth/logout-all'),
+    
+    // Обновленный logout для клиента
+    clientLogout: () => {
+      const refreshToken = localStorage.getItem('refresh_token');
+      if (refreshToken) {
+        // Пытаемся отозвать токен на сервере (не блокируем)
+        api.post('/auth/logout', { refresh_token: refreshToken }).catch(() => {});
+      }
+      localStorage.clear();
     },
   },
 
-  // Гранты
+  // Остальные методы без изменений...
   grants: {
-    getAll: () => api.get<Grant[]>('/grants'),
+    getAll: (params?: { category?: string; status?: string }) => 
+      api.get<Grant[]>('/grants/', { params }),
     getById: (id: number) => api.get<Grant>(`/grants/${id}`),
-    create: (data: any) => api.post<Grant>('/grants', data),
+    create: (data: any) => api.post<Grant>('/grants/', data),
+    update: (id: number, data: any) => api.put<Grant>(`/grants/${id}`, data),
+    delete: (id: number) => api.delete(`/grants/${id}`),
   },
 
-  // Заявки
   applications: {
     getMyApplications: () => api.get<Application[]>('/applications/my'),
     getApplicationById: (id: number) => api.get<Application>(`/applications/${id}`),
-    createApplication: (data: any) => api.post<Application>('/applications', data),
+    createApplication: (data: any) => api.post<Application>('/applications/', data),
     updateApplication: (id: number, data: any) => api.put<Application>(`/applications/${id}`, data),
     deleteApplication: (id: number) => api.delete(`/applications/${id}`),
     submitApplication: (id: number) => api.post<Application>(`/applications/${id}/submit`),
+    updateFeedback: (id: number, feedback: string) => 
+      api.patch(`/applications/${id}/feedback`, { feedback }),
+    updateStatus: (id: number, status: string) => 
+      api.patch(`/applications/${id}/status`, { status }),
   },
 
-  // ML оценка
   ml: {
     evaluate: (application_text: string, grant_title?: string) =>
       api.post<MLEvaluation>('/ai/evaluate', {
@@ -149,6 +242,17 @@ export const apiService = {
     
     debugAnalysis: (application_text: string) =>
       api.post('/ai/debug-analysis', { application_text }),
+  },
+
+  admin: {
+    getUsers: () => api.get<User[]>('/admin/users'),
+    getApplications: () => api.get<any[]>('/admin/applications'),
+    toggleUserStatus: (userId: number, isActive: boolean) => 
+      api.patch(`/admin/users/${userId}/status`, { status: isActive ? 'active' : 'blocked' }),
+    changeUserRole: (userId: number, role: 'user' | 'admin') => 
+      api.patch(`/admin/users/${userId}/role`, { role }),
+    deleteUser: (userId: number) => api.delete(`/admin/users/${userId}`),
+    getStats: () => api.get('/admin/stats'),
   },
 };
 

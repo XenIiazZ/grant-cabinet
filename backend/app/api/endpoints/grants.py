@@ -6,7 +6,7 @@ from typing import List, Optional
 from app.database.session import get_db
 from app.schemas.grant_schemas import GrantCreate, GrantUpdate, GrantResponse
 from app.crud.grant_crud import grant_crud
-from app.api.dependencies import get_current_user, get_current_user_optional, check_admin_permission
+from app.api.dependencies import get_current_user, get_current_user_optional, allow_expert_admin, check_admin_permission
 from app.database.models.user import User
 
 router = APIRouter()
@@ -48,15 +48,13 @@ async def get_grant(
         )
     return grant
 
-# 3. POST /grants - Создать грант (только для администраторов/создателей)
+# 3. POST /grants - Создать грант (Теперь только Эксперт или Админ)
 @router.post("/", response_model=GrantResponse)
 async def create_grant(
     grant_data: GrantCreate,
-    current_user: User = Depends(check_admin_permission),
+    current_user: User = Depends(allow_expert_admin), # Защищено ролями
     db: Session = Depends(get_db)
 ):
-    """Создать новый публичный грант"""
-    # Добавляем created_by (кто создал грант)
     return grant_crud.create_with_owner(db, grant_data, user_id=current_user.id)
 
 # 4. PUT /grants/{grant_id} - Обновить грант (только создатель)
@@ -85,11 +83,11 @@ async def update_grant(
     updated_grant = grant_crud.update(db, grant_id, grant_data)
     return updated_grant
 
-# 5. DELETE /grants/{grant_id} - Удалить грант (только создатель)
+# 5. DELETE /grants/{grant_id} - Удалить грант (Только Админ)
 @router.delete("/{grant_id}")
 async def delete_grant(
     grant_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(check_admin_permission), # Только админ
     db: Session = Depends(get_db)
 ):
     """Удалить грант"""

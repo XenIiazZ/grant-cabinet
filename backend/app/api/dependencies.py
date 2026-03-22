@@ -2,24 +2,20 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, List
 
 from app.database.session import get_db
-from app.database.models.user import User
+from app.database.models.user import User, UserRole
+from app.services.token_service import token_service
 
 SECRET_KEY = "test-secret-key-for-jwt-12345"
 ALGORITHM = "HS256"
-
 security = HTTPBearer()
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)
 ) -> User:
-    """
-    Зависимость для получения текущего пользователя из Bearer токена.
-    Используется в защищенных эндпоинтах как: current_user: User = Depends(get_current_user)
-    """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Неверные учетные данные",
@@ -27,136 +23,90 @@ async def get_current_user(
     )
     
     token = credentials.credentials
+    print(f"Получен токен в get_current_user: {token[:20]}...")
     
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str = payload.get("sub")
-        
-        if email is None:
+        # Используем token_service для проверки
+        payload = token_service.verify_token(token, "access")
+        if payload is None:
+            print("Токен не прошел валидацию")
             raise credentials_exception
             
-        # Проверяем срок действия токена
-        # (уже проверяется в jwt.decode при истечении срока)
-        
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Срок действия токена истек",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    except JWTError:
+        email: str = payload.get("sub")
+        if email is None:
+            print("В токене нет email")
+            raise credentials_exception
+            
+        print(f"Токен валидный, email: {email}")
+            
+    except (JWTError, jwt.ExpiredSignatureError) as e:
+        print(f"Ошибка при проверке токена: {e}")
         raise credentials_exception
-    
-    # Ищем пользователя в базе данных
-    user = db.query(User).filter(User.email == email).first()
-    
-    if user is None:
-        raise credentials_exception
-    
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Пользователь деактивирован"
-        )
-    
-    return user
 
+    user = db.query(User).filter(User.email == email).first()
+    if user is None or not user.is_active:
+        print(f"Пользователь {email} не найден или не активен")
+        raise credentials_exception
+        
+    print(f"Пользователь найден: {user.email}")
+    return user
 
 async def get_current_user_optional(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)),
     db: Session = Depends(get_db)
 ) -> Optional[User]:
-    """
-    Опциональная зависимость для получения текущего пользователя.
-    Возвращает пользователя, если токен валиден, иначе None.
-    Используется в эндпоинтах, которые работают и для анонимных пользователей.
-    """
     if credentials is None:
         return None
-    
     try:
         token = credentials.credentials
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str = payload.get("sub")
-        
-        if email is None:
+        payload = token_service.verify_token(token, "access")
+        if payload is None:
             return None
             
-    except (JWTError, jwt.ExpiredSignatureError):
-        return None
-    
-    # Ищем пользователя в базе данных
-    user = db.query(User).filter(User.email == email).first()
-    
-    if user is None or not user.is_active:
-        return None
-    
-    return user
-
-
-async def get_current_user_id(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
-) -> int:
-    """
-    Быстрая зависимость для получения только ID пользователя.
-    Используется когда нужен только ID, а не весь объект пользователя.
-    """
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Неверные учетные данные",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    
-    token = credentials.credentials
-    
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email: str = payload.get("sub")
-        
-        if email is None:
-            raise credentials_exception
+        if email is None: 
+            return None
             
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Срок действия токена истек"
-        )
-    except JWTError:
-        raise credentials_exception
-    
-    # Ищем пользователя в базе данных (только ID)
-    user = db.query(User.id).filter(User.email == email, User.is_active == True).first()
-    
-    if user is None:
-        raise credentials_exception
-    
-    return user[0]
+        user = db.query(User).filter(User.email == email).first()
+        if user and not user.is_active:
+            return None
+        return user
+    except:
+        return None
 
+class RoleChecker:
+    def __init__(self, allowed_roles: List[UserRole]):
+        self.allowed_roles = allowed_roles
+
+    def __call__(self, current_user: User = Depends(get_current_user)):
+        if current_user.role not in self.allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, 
+                detail=f"Доступ запрещен. Требуемые роли: {[r.value for r in self.allowed_roles]}"
+            )
+        return current_user
+
+def check_admin_permission(current_user: User = Depends(get_current_user)):
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail="Требуются права администратора"
+        )
+    return current_user
+
+allow_expert_admin = RoleChecker([UserRole.EXPERT, UserRole.ADMIN])
 
 def check_user_permission(
-    user_id: int,
+    user_id: int, 
     current_user: User = Depends(get_current_user)
 ):
     """
-    Зависимость для проверки прав пользователя.
-    Проверяет, что текущий пользователь имеет доступ к ресурсу.
+    Проверяет, совпадает ли ID владельца ресурса с ID текущего пользователя.
+    Используется для защиты доступа к личным данным (заявкам).
     """
-    if current_user.id != user_id:
+    if current_user.id != user_id and current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Недостаточно прав для выполнения этого действия"
         )
-    return current_user
-
-
-def check_admin_permission(
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Зависимость для проверки административных прав.
-    В будущем можно добавить поле is_admin в модель User.
-    """
-    # Пока все пользователи могут создавать гранты (публичные)
-    # В будущем можно добавить: if not current_user.is_admin:
     return current_user
