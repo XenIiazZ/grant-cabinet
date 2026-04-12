@@ -111,7 +111,11 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [userRole, setUserRole] = useState<'user' | 'admin' | 'expert'>('user');
   const [users, setUsers] = useState<User[]>([]);
-  
+  const [selectedStatus, setSelectedStatus] = useState('');
+  const [minAmount, setMinAmount] = useState('');
+  const [maxAmount, setMaxAmount] = useState('');
+  const [sortBy, setSortBy] = useState('created_at');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   
   // Фильтры каталога
   const [searchQuery, setSearchQuery] = useState("");
@@ -614,6 +618,16 @@ const handleSubmitApplication = async (applicationText: string) => {
               onSearchChange={setSearchQuery}
               selectedCategory={selectedCategory}
               onCategoryChange={setSelectedCategory}
+              selectedStatus={selectedStatus}
+              onStatusChange={setSelectedStatus}
+              minAmount={minAmount}
+              onMinAmountChange={setMinAmount}
+              maxAmount={maxAmount}
+              onMaxAmountChange={setMaxAmount}
+              sortBy={sortBy}
+              onSortByChange={setSortBy}
+              sortOrder={sortOrder}
+              onSortOrderChange={setSortOrder}
             />
           </div>
         );

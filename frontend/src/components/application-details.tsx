@@ -1,9 +1,13 @@
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Separator } from "./ui/separator";
 import { ArrowLeft, FileText, Calendar, DollarSign, CheckCircle2, XCircle, AlertCircle, Brain } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
+
+
+import { FileUpload } from "./FileUpload";
+import { toast } from "sonner";
 
 interface Application {
   id: string;
@@ -317,6 +321,31 @@ export function ApplicationDetails({ application, onBack }: ApplicationDetailsPr
           </Alert>
         )}
 
+      
+      {/* Прикрепленные файлы */}
+      {application.id && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Прикрепленные документы
+            </CardTitle>
+            <CardDescription>
+              Загрузите документы для подтверждения заявки (PDF, изображения, документы Word)
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <FileUpload 
+              applicationId={parseInt(application.id.replace('APP', ''))} 
+              onUploadComplete={() => {
+                toast.success('Файл загружен');
+              }}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+
         {/* Действия */}
         <div className="flex gap-3">
           <Button variant="outline" onClick={onBack} className="flex-1 sm:flex-none">
@@ -327,6 +356,10 @@ export function ApplicationDetails({ application, onBack }: ApplicationDetailsPr
               Редактировать заявку
             </Button>
           )}
+
+        
+
+
         </div>
       </div>
     </div>

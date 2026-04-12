@@ -100,7 +100,7 @@ api.interceptors.response.use(
   }
 );
 
-// Типы (оставляем без изменений)
+// Типы
 export interface Grant {
   id: number;
   title: string;
@@ -166,7 +166,7 @@ export interface UserResponse {
 
 export interface TokenResponse {
   access_token: string;
-  refresh_token: string;  // Обновлено
+  refresh_token: string;
   token_type: string;
 }
 
@@ -174,7 +174,7 @@ export interface RefreshTokenRequest {
   refresh_token: string;
 }
 
-// API методы (обновленные)
+// API методы
 export const apiService = {
   auth: {
     login: (email: string, password: string) =>
@@ -193,20 +193,17 @@ export const apiService = {
     
     logoutAll: () => api.post('/auth/logout-all'),
     
-    // Обновленный logout для клиента
     clientLogout: () => {
       const refreshToken = localStorage.getItem('refresh_token');
       if (refreshToken) {
-        // Пытаемся отозвать токен на сервере (не блокируем)
         api.post('/auth/logout', { refresh_token: refreshToken }).catch(() => {});
       }
       localStorage.clear();
     },
   },
 
-  // Остальные методы без изменений...
   grants: {
-    getAll: (params?: { category?: string; status?: string }) => 
+    getAll: (params?: { category?: string; status?: string; min_amount?: number; max_amount?: number; search?: string; sort_by?: string; sort_order?: string; page?: number; page_size?: number }) => 
       api.get<Grant[]>('/grants/', { params }),
     getById: (id: number) => api.get<Grant>(`/grants/${id}`),
     create: (data: any) => api.post<Grant>('/grants/', data),
@@ -253,6 +250,20 @@ export const apiService = {
       api.patch(`/admin/users/${userId}/role`, { role }),
     deleteUser: (userId: number) => api.delete(`/admin/users/${userId}`),
     getStats: () => api.get('/admin/stats'),
+  },
+
+  
+  files: {
+    uploadFile: (applicationId: number, file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      return api.post(`/applications/${applicationId}/files`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+    },
+    getFile: (fileId: number) => api.get(`/files/${fileId}`),
+    deleteFile: (fileId: number) => api.delete(`/files/${fileId}`),
+    getApplicationFiles: (applicationId: number) => api.get(`/applications/${applicationId}/files`)
   },
 };
 

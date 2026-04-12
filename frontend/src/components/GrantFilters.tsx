@@ -36,7 +36,7 @@ export function GrantCatalog({
   onCategoryChange
 }: GrantCatalogProps) {
   // Новые состояния для расширенных фильтров
-  const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [selectedStatus, setSelectedStatus] = useState<string>("");
   const [minAmount, setMinAmount] = useState<string>("");
   const [maxAmount, setMaxAmount] = useState<string>("");
   const [sortBy, setSortBy] = useState<string>("title");
@@ -75,12 +75,7 @@ export function GrantCatalog({
   };
 
   const categories = [...new Set(grants.map(grant => grant.category))];
-  const statuses = [
-    { value: "all", label: "Все статусы" },
-    { value: "открыт", label: "Открыт" },
-    { value: "скоро_закрывается", label: "Скоро закрывается" },
-    { value: "закрыт", label: "Закрыт" }
-  ];
+  const statuses = ['открыт', 'скоро_закрывается', 'закрыт'];
 
   // Применяем все фильтры
   const filteredGrants = grants.filter(grant => {
@@ -92,7 +87,7 @@ export function GrantCatalog({
     const matchesCategory = selectedCategory === 'all' || selectedCategory === '' || grant.category === selectedCategory;
     
     // Фильтр по статусу
-    const matchesStatus = selectedStatus === "all" || grant.status === selectedStatus;
+    const matchesStatus = !selectedStatus || grant.status === selectedStatus;
     
     // Фильтр по сумме
     const grantAmount = parseAmount(grant.amount);
@@ -138,7 +133,7 @@ export function GrantCatalog({
   const resetFilters = () => {
     onSearchChange('');
     onCategoryChange('all');
-    setSelectedStatus("all");
+    setSelectedStatus('');
     setMinAmount('');
     setMaxAmount('');
     setSortBy('title');
@@ -147,7 +142,7 @@ export function GrantCatalog({
 
   const hasActiveFilters = searchQuery || 
     (selectedCategory !== 'all' && selectedCategory !== '') || 
-    selectedStatus !== "all" || minAmount || maxAmount;
+    selectedStatus || minAmount || maxAmount;
 
   return (
     <div className="space-y-6">
@@ -199,9 +194,11 @@ export function GrantCatalog({
                   <SelectValue placeholder="Все статусы" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="">Все статусы</SelectItem>
                   {statuses.map(status => (
-                    <SelectItem key={status.value} value={status.value}>
-                      {status.label}
+                    <SelectItem key={status} value={status}>
+                      {status === 'открыт' ? 'Открыт' : 
+                       status === 'скоро_закрывается' ? 'Скоро закрывается' : 'Закрыт'}
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -8,6 +8,9 @@ from app.schemas.grant_schemas import GrantCreate, GrantUpdate, GrantResponse
 from app.crud.grant_crud import grant_crud
 from app.api.dependencies import get_current_user, get_current_user_optional, allow_expert_admin, check_admin_permission
 from app.database.models.user import User
+from app.schemas.filters import GrantFilterParams, GrantSortParams, PaginationParams
+from typing import Optional
+from sqlalchemy import and_, or_, cast, Integer
 
 router = APIRouter()
 
@@ -130,3 +133,69 @@ async def get_grant_categories():
         "Бизнес",
         "Другое"
     ]
+
+
+@router.get("/", response_model=List[GrantResponse])
+async def get_grants(
+    # Фильтрация
+    category: Optional[str] = None,
+    status: Optional[str] = None,
+    min_amount: Optional[int] = None,
+    max_amount: Optional[int] = None,
+    search: Optional[str] = None,
+    # Сортировка
+    sort_by: str = "created_at",
+    sort_order: str = "desc",
+    # Пагинация
+    page: int = 1,
+    page_size: int = 10,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """
+    Получить список грантов с фильтрацией, сортировкой и пагинацией
+    """
+    query = db.query(Grant)
+    
+    # Применяем фильтры
+    if category:
+        query = query.filter(Grant.category == category)
+    
+    if status:
+        query = query.filter(Grant.status == status)
+    
+    if min_amount:
+        query = query.filter(cast(Grant.max_amount, Integer) >= min_amount)
+    
+    if max_amount:
+        query = query.filter(cast(Grant.max_amount, Integer) <= max_amount)
+    
+    if search:
+        search_term = f"%{search}%"
+        query = query.filter(
+            or_(
+                Grant.title.ilike(search_term),
+                Grant.description.ilike(search_term)
+            )
+        )
+    
+    # Сортировка
+    sort_column = getattr(Grant, sort_by, Grant.created_at)
+    if sort_order == "desc":
+        query = query.order_by(sort_column.desc())
+    else:
+        query = query.order_by(sort_column.asc())
+    
+    # Пагинация
+    total = query.count()
+    skip = (page - 1) * page_size
+    grants = query.offset(skip).limit(page_size).all()
+    
+    # Возвращаем с метаинформацией
+    return {
+        "items": grants,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": (total + page_size - 1) // page_size
+    }
