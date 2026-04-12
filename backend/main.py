@@ -1,9 +1,13 @@
 # backend/app/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
+from app.api.endpoints.currency import router as currency_router
 from app.database.session import engine
 from app.database.base import Base
+from fastapi import FastAPI, Depends
+from fastapi.responses import PlainTextResponse, Response
+from sqlalchemy.orm import Session
+from app.database.session import get_db
 
 # Импорты роутеров
 from app.api.endpoints.grants import router as grants_router
@@ -37,6 +41,7 @@ app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 app.include_router(admin_router, prefix="/api/admin", tags=["admin"]) 
 app.include_router(ai_router, prefix="/api/ai", tags=["AI Evaluation"])
 app.include_router(files_router, prefix="/api", tags=["files"])
+app.include_router(currency_router, prefix="/api", tags=["currency"])
 # Health check
 @app.get("/")
 async def root():
@@ -58,3 +63,52 @@ async def health_check():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+from fastapi.responses import PlainTextResponse, Response
+
+@app.get("/robots.txt", response_class=PlainTextResponse)
+async def robots_txt():
+    content = """User-agent: *
+Allow: /$
+Allow: /grants/
+Allow: /grant/
+Disallow: /login
+Disallow: /register
+Disallow: /dashboard
+Disallow: /admin
+Disallow: /apply/
+Sitemap: https://yourdomain.com/sitemap.xml
+"""
+    return content
+
+@app.get("/sitemap.xml")
+async def sitemap_xml(db: Session = Depends(get_db)):
+    """Генерация sitemap.xml с публичными страницами грантов"""
+    from app.database.models.grant import Grant
+    grants = db.query(Grant).all()
+    base_url = "http://localhost:3000"  # В продакшене заменить на реальный домен
+    
+    urls = [
+        {"loc": base_url, "priority": "1.0", "changefreq": "daily"},
+        {"loc": f"{base_url}/grants", "priority": "0.9", "changefreq": "daily"},
+    ]
+    for grant in grants:
+        urls.append({
+            "loc": f"{base_url}/grant/{grant.id}",
+            "priority": "0.8",
+            "changefreq": "weekly"
+        })
+    
+    # Генерация XML
+    xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
+    xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    for url in urls:
+        xml += '  <url>\n'
+        xml += f'    <loc>{url["loc"]}</loc>\n'
+        xml += f'    <priority>{url["priority"]}</priority>\n'
+        xml += f'    <changefreq>{url["changefreq"]}</changefreq>\n'
+        xml += '  </url>\n'
+    xml += '</urlset>'
+    
+    return Response(content=xml, media_type="application/xml")

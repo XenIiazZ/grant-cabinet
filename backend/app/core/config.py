@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     S3_ACCESS_KEY: str = "minioadmin"
     S3_SECRET_KEY: str = "minioadmin"
     S3_USE_SSL: bool = False
+
     
     class Config:
         env_file = ".env"
