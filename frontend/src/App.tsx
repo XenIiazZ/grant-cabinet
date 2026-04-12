@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { apiService, type Grant, type Application, type User, type MLEvaluation } from "./services/api";
 import { AdminPanel } from "./components/admin-panel";
 import { api } from './services/api';
+import { SEO } from "./components/SEO";
 
 // Типы для фронтенда
 interface FrontendGrant {
@@ -608,29 +609,37 @@ const handleSubmitApplication = async (applicationText: string) => {
   
   const renderCurrentPage = () => {
     switch (currentPage) {
+      
       case 'catalog':
         return (
-          <div className="container mx-auto px-4 py-8">
-            <GrantCatalog
-              grants={grants}
-              onApplyToGrant={handleApplyToGrant}
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-              selectedCategory={selectedCategory}
-              onCategoryChange={setSelectedCategory}
-              selectedStatus={selectedStatus}
-              onStatusChange={setSelectedStatus}
-              minAmount={minAmount}
-              onMinAmountChange={setMinAmount}
-              maxAmount={maxAmount}
-              onMaxAmountChange={setMaxAmount}
-              sortBy={sortBy}
-              onSortByChange={setSortBy}
-              sortOrder={sortOrder}
-              onSortOrderChange={setSortOrder}
+          <>
+            <SEO 
+              title="Каталог грантов"
+              description="Найдите грант для вашего проекта. Финансирование социальных, культурных, образовательных и других инициатив."
+              url="/"
             />
-          </div>
-        );
+            <div className="container mx-auto px-4 py-8">
+              <GrantCatalog
+                grants={grants}
+                onApplyToGrant={handleApplyToGrant}
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
+                selectedCategory={selectedCategory}
+                onCategoryChange={setSelectedCategory}
+                selectedStatus={selectedStatus}
+                onStatusChange={setSelectedStatus}
+                minAmount={minAmount}
+                onMinAmountChange={setMinAmount}
+                maxAmount={maxAmount}
+                onMaxAmountChange={setMaxAmount}
+                sortBy={sortBy}
+                onSortByChange={setSortBy}
+                sortOrder={sortOrder}
+                onSortOrderChange={setSortOrder}
+              />
+            </div>
+          </>
+        );  
       
       case 'application':
         return (
@@ -658,10 +667,7 @@ const handleSubmitApplication = async (applicationText: string) => {
               <div className="text-center py-12">
                 <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
                 <p>Загрузка деталей заявки...</p>
-                <Button 
-                  onClick={handleBackToDashboard}
-                  className="mt-4"
-                >
+                <Button onClick={handleBackToDashboard} className="mt-4">
                   Вернуться к списку
                 </Button>
               </div>
