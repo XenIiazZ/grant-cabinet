@@ -134,19 +134,35 @@ def mock_s3(monkeypatch):
     monkeypatch.setattr("app.services.s3_service.s3_service", MockS3())
 
 # Фикстура для тестового файла
-@pytest.fixture
-def test_file(db, test_user, test_application):
-    from app.database.models.file import File
-    file = File(
-        filename="test.pdf",
-        original_filename="test.pdf",
-        file_size=1024,
-        file_type="application/pdf",
-        storage_path="test/path",
-        application_id=test_application.id,
-        user_id=test_user.id
-    )
-    db.add(file)
-    db.commit()
-    db.refresh(file)
-    return file
+# @pytest.fixture
+# def test_file(db, test_user, test_application):
+#     from app.database.models.file import File
+#     file = File(
+#         filename="test.pdf",
+#         original_filename="test.pdf",
+#         file_size=1024,
+#         file_type="application/pdf",
+#         storage_path="test/path",
+#         application_id=test_application.id,
+#         user_id=test_user.id
+#     )
+#     db.add(file)
+#     db.commit()
+#     db.refresh(file)
+#     return file
+
+
+@pytest.fixture(autouse=True)
+def mock_s3(monkeypatch):
+    class MockS3:
+        def __init__(self):
+            self.bucket_name = "test-bucket"
+        def _ensure_bucket(self):
+            pass
+        def upload_file(self, file_content, original_filename, content_type):
+            return {"storage_path": "mock/path", "file_size": len(file_content)}
+        def get_presigned_url(self, storage_path, expires_in=3600):
+            return "https://mock.url"
+        def delete_file(self, storage_path):
+            return True
+    monkeypatch.setattr("app.services.s3_service.s3_service", MockS3())

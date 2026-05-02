@@ -20,6 +20,8 @@ jobs:
           cd backend
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          # Убедитесь, что тестовые зависимости установлены
+          pip install pytest pytest-asyncio pytest-cov httpx factory-boy faker aioresponses pytest-mock
       - name: Run backend tests
         run: |
           cd backend
