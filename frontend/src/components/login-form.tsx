@@ -17,16 +17,13 @@ export function LoginForm({ onLogin, onSwitchToRegister }: LoginFormProps) {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    
-    // Имитация запроса к серверу
-    setTimeout(() => {
-      onLogin(email, password);
-      setIsLoading(false);
-    }, 1000);
-  };
+
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setIsLoading(true);
+  await onLogin(email, password);
+  setIsLoading(false);
+};
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">

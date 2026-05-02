@@ -87,7 +87,7 @@ async def sitemap_xml(db: Session = Depends(get_db)):
     """Генерация sitemap.xml с публичными страницами грантов"""
     from app.database.models.grant import Grant
     grants = db.query(Grant).all()
-    base_url = "http://localhost:3000"  # В продакшене заменить на реальный домен
+    base_url = "http://localhost:3000" 
     
     urls = [
         {"loc": base_url, "priority": "1.0", "changefreq": "daily"},

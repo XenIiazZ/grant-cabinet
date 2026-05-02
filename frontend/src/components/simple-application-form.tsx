@@ -5,7 +5,7 @@ import { Textarea } from "./ui/textarea";
 import { Label } from "./ui/label";
 import { ApplicationChecker } from "./application-checker";
 import { FileText, Send, Check } from "lucide-react";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 
 interface SimpleApplicationFormProps {
   grantTitle: string;

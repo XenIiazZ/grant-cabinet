@@ -1,0 +1,9 @@
+node_modules
+build
+.git
+.gitignore
+*.log
+.env
+.DS_Store
+coverage
+.vitest

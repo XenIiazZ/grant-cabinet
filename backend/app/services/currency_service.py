@@ -8,7 +8,6 @@ logger = logging.getLogger(__name__)
 
 class CurrencyService:
     def __init__(self):
-        # Используем бесплатный API без ключа
         self.base_url = "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies"
         self.cache: Dict[str, dict] = {}
         self.cache_ttl = timedelta(hours=6)

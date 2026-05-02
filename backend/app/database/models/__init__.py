@@ -1,5 +1,5 @@
-from app.database.models.user import User, UserRole
-from app.database.models.grant import Grant, GrantCategory, GrantStatus
-from app.database.models.application import Application, ApplicationStatus
-from app.database.models.token import RefreshToken
-from app.database.models.file import File
+from .file import File
+from .user import User, UserRole
+from .grant import Grant, GrantCategory, GrantStatus
+from .application import Application, ApplicationStatus
+from .token import RefreshToken

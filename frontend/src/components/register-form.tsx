@@ -20,25 +20,18 @@ export function RegisterForm({ onRegister, onSwitchToLogin }: RegisterFormProps)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    
     if (password !== confirmPassword) {
       setError("Пароли не совпадают");
       return;
     }
-    
     if (password.length < 6) {
       setError("Пароль должен содержать минимум 6 символов");
       return;
     }
-
     setIsLoading(true);
-    
-    // Имитация запроса к серверу
-    setTimeout(() => {
-      onRegister(email, password, fullName);
-      setIsLoading(false);
-    }, 1000);
-  };
+    await onRegister(email, password, fullName);
+    setIsLoading(false);
+};
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">

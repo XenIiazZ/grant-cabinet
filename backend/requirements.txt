@@ -1,0 +1,32 @@
+# Основные веб-фреймворки и сервер
+fastapi
+uvicorn[standard]
+
+# Работа с базой данных
+sqlalchemy
+
+# Аутентификация и шифрование
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+email-validator
+
+# Валидация данных и настройки
+pydantic
+pydantic-settings
+python-dotenv
+
+# HTTP-клиент для внешних API (курсы валют)
+aiohttp
+
+# Объектное хранилище (MinIO)
+boto3
+
+# Машинное обучение (оценка заявок)
+sentence-transformers
+torch
+transformers
+numpy
+scipy
+scikit-learn
+joblib

@@ -1,0 +1,10 @@
+{
+    admin off
+}
+
+:3000 {
+    root * /usr/share/caddy
+    file_server
+    try_files {path} /index.html
+    header Access-Control-Allow-Origin *
+}
