@@ -18,6 +18,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd backend
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
       - name: Run backend tests
         run: |
@@ -35,7 +36,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd frontend
-          npm ci --legacy-peer-deps
+          npm ci --legacy-peer-deps || npm install
       - name: Run Vitest tests
         run: |
           cd frontend
@@ -68,13 +69,3 @@ jobs:
           file: frontend/Dockerfile
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/grant-frontend:latest
-
-  deploy:
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    steps:
-      - name: Deploy to server (example)
-        run: |
-          echo "Deployment step – use SSH, Ansible, or cloud CLI"
-          # Здесь можно добавить реальный деплой, например, через docker compose на удалённом сервере
