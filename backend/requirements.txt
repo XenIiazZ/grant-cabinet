@@ -30,3 +30,12 @@ numpy
 scipy
 scikit-learn
 joblib
+
+pytest
+pytest-asyncio
+pytest-cov
+httpx
+factory-boy
+faker
+aioresponses
+pytest-mock
