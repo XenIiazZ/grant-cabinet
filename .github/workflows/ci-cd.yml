@@ -1,3 +1,11 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main" ]
+
 jobs:
   test-backend:
     runs-on: ubuntu-latest
@@ -12,8 +20,6 @@ jobs:
           cd backend
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          # Устанавливаем тестовые пакеты (если они не в requirements.txt)
-          pip install pytest pytest-asyncio pytest-cov httpx factory-boy faker aioresponses pytest-mock
       - name: Run backend tests
         run: |
           cd backend
