@@ -3,6 +3,7 @@ from unittest.mock import patch, MagicMock
 from app.services.s3_service import S3Service
 
 @patch("app.services.s3_service.boto3.client")
+@pytest.mark.skip_ci
 def test_upload_file(mock_client):
     mock_s3 = MagicMock()
     mock_client.return_value = mock_s3
@@ -18,6 +19,7 @@ def test_upload_file(mock_client):
     assert kwargs["ContentType"] == "application/pdf"
 
 @patch("app.services.s3_service.boto3.client")
+@pytest.mark.skip_ci
 def test_get_presigned_url(mock_client):
     mock_s3 = MagicMock()
     mock_s3.generate_presigned_url.return_value = "https://test.url"

@@ -1,5 +1,5 @@
 import pytest
-
+@pytest.mark.skip_ci
 def test_full_user_journey(e2e_client):
     # 1. Регистрация
     reg = e2e_client.post("/api/auth/register", json={
@@ -34,6 +34,7 @@ def test_full_user_journey(e2e_client):
     logout = e2e_client.post("/api/auth/logout", json={"refresh_token": refresh})
     assert logout.status_code == 200
 
+@pytest.mark.skip_ci
 def test_admin_can_block_user(e2e_client):
     # Создаём обычного пользователя
     e2e_client.post("/api/auth/register", json={

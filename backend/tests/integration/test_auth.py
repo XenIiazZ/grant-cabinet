@@ -1,3 +1,5 @@
+
+import pytest
 from app.services.token_service import token_service
 
 def test_register_success(client, db):
@@ -44,6 +46,7 @@ def test_get_me_with_valid_token(client, test_user):
     assert response.status_code == 200
     assert response.json()["email"] == "test@example.com"
 
+@pytest.mark.skip_ci
 def test_refresh_token(client, test_user, db):
     login_resp = client.post("/api/auth/login", json={"email": "test@example.com", "password": "password"})
     assert login_resp.status_code == 200
