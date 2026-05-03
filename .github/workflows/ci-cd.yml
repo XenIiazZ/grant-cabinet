@@ -20,7 +20,6 @@ jobs:
           cd backend
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          # Убедитесь, что тестовые зависимости установлены
           pip install pytest pytest-asyncio pytest-cov httpx factory-boy faker aioresponses pytest-mock
       - name: Run backend tests
         run: |
@@ -34,12 +33,40 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'   # используем Node 20 для совместимости с react-router-dom@7
       - name: Install dependencies
         run: |
           cd frontend
-          npm ci --legacy-peer-deps || npm install
+          npm install --legacy-peer-deps
       - name: Run Vitest tests
         run: |
           cd frontend
           npx vitest run
+
+  build-and-push:
+    needs: [test-backend, test-frontend]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build and push backend
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: backend/Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/grant-backend:latest
+      - name: Build and push frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: frontend/Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/grant-frontend:latest

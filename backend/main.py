@@ -14,7 +14,7 @@ from app.api.endpoints.grants import router as grants_router
 from app.api.endpoints.applications import router as applications_router
 from app.api.endpoints.auth import router as auth_router
 from app.api.endpoints.admin import router as admin_router
-from app.ai.endpoints import router as ai_router
+# from app.ai.endpoints import router as ai_router
 from app.api.endpoints.files import router as files_router
 # Создаем таблицы
 Base.metadata.create_all(bind=engine)
@@ -39,7 +39,7 @@ app.include_router(grants_router, prefix="/api/grants", tags=["grants"])
 app.include_router(applications_router, prefix="/api/applications", tags=["applications"])
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 app.include_router(admin_router, prefix="/api/admin", tags=["admin"]) 
-app.include_router(ai_router, prefix="/api/ai", tags=["AI Evaluation"])
+# app.include_router(ai_router, prefix="/api/ai", tags=["AI Evaluation"])
 app.include_router(files_router, prefix="/api", tags=["files"])
 app.include_router(currency_router, prefix="/api", tags=["currency"])
 # Health check

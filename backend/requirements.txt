@@ -23,13 +23,13 @@ aiohttp
 boto3
 
 # Машинное обучение (оценка заявок)
-sentence-transformers
-torch
-transformers
-numpy
-scipy
-scikit-learn
-joblib
+# sentence-transformers
+# torch
+# transformers
+# numpy
+# scipy
+# scikit-learn
+# joblib
 
 pytest
 pytest-asyncio

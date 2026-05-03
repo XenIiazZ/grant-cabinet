@@ -1,3 +1,15 @@
+# backend/tests/conftest.py
+import sys
+from unittest.mock import MagicMock
+
+# === МОК S3 (должен быть ДО любого импорта app) ===
+mock_s3 = MagicMock()
+mock_s3.get_presigned_url.return_value = "https://mock.url"
+mock_s3.upload_file.return_value = {"storage_path": "mock/path", "file_size": 0}
+mock_s3.delete_file.return_value = True
+sys.modules['app.services.s3_service'] = MagicMock(s3_service=mock_s3)
+
+# Теперь можно импортировать остальное
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -8,7 +20,7 @@ from app.database.session import get_db
 from app.database.models.user import User, UserRole
 import hashlib
 
-# Тестовая БД – in-memory
+# Тестовая БД SQLite in-memory
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -25,7 +37,6 @@ app.dependency_overrides[get_db] = override_get_db
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
-# Автоматическое создание таблиц для всех тестов, кроме e2e (там явно)
 @pytest.fixture(scope="function", autouse=True)
 def setup_database():
     Base.metadata.create_all(bind=engine)
@@ -113,56 +124,10 @@ def test_application(db, test_user, test_grant):
     db.refresh(app_obj)
     return app_obj
 
+# Фикстура для E2E-клиента (опционально)
 @pytest.fixture(scope="function")
 def e2e_client():
-    """Клиент для E2E-тестов с явным созданием таблиц"""
-    Base.metadata.create_all(bind=engine)   # <-- КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ
+    Base.metadata.create_all(bind=engine)
     with TestClient(app) as test_client:
         yield test_client
     Base.metadata.drop_all(bind=engine)
-
-# Мок S3 для всех тестов
-@pytest.fixture(autouse=True)
-def mock_s3(monkeypatch):
-    class MockS3:
-        def upload_file(self, file_content, original_filename, content_type):
-            return {"storage_path": "mock/path", "file_size": len(file_content)}
-        def get_presigned_url(self, storage_path, expires_in=3600):
-            return "https://mock.url"
-        def delete_file(self, storage_path):
-            return True
-    monkeypatch.setattr("app.services.s3_service.s3_service", MockS3())
-
-# Фикстура для тестового файла
-# @pytest.fixture
-# def test_file(db, test_user, test_application):
-#     from app.database.models.file import File
-#     file = File(
-#         filename="test.pdf",
-#         original_filename="test.pdf",
-#         file_size=1024,
-#         file_type="application/pdf",
-#         storage_path="test/path",
-#         application_id=test_application.id,
-#         user_id=test_user.id
-#     )
-#     db.add(file)
-#     db.commit()
-#     db.refresh(file)
-#     return file
-
-
-@pytest.fixture(autouse=True)
-def mock_s3(monkeypatch):
-    class MockS3:
-        def __init__(self):
-            self.bucket_name = "test-bucket"
-        def _ensure_bucket(self):
-            pass
-        def upload_file(self, file_content, original_filename, content_type):
-            return {"storage_path": "mock/path", "file_size": len(file_content)}
-        def get_presigned_url(self, storage_path, expires_in=3600):
-            return "https://mock.url"
-        def delete_file(self, storage_path):
-            return True
-    monkeypatch.setattr("app.services.s3_service.s3_service", MockS3())
