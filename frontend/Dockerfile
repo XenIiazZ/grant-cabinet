@@ -1,10 +1,9 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 COPY frontend/package*.json ./
-# Используем npm install вместо npm ci, чтобы избежать рассинхронизации lock-файла
 RUN npm install --legacy-peer-deps
 COPY frontend/ .
-RUN npm run build
+RUN npx vite build
 
 FROM caddy:alpine
 COPY --from=builder /app/build /usr/share/caddy
