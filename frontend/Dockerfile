@@ -2,8 +2,9 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 COPY frontend/package*.json ./
 RUN npm install --legacy-peer-deps
+RUN npm install -g vite          # <-- глобальная установка
 COPY frontend/ .
-RUN npx vite build
+RUN npm run build
 
 FROM caddy:alpine
 COPY --from=builder /app/build /usr/share/caddy
